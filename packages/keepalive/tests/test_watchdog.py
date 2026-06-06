@@ -308,6 +308,12 @@ def test_no_redis_url_engages_local_fallbacks() -> None:
     assert wd.cache is None
 
 
+def test_default_suite_inherits_loss_key() -> None:
+    wd = Watchdog(run=None, settings=Settings(api_key="k"), loss_key="train/loss")
+    keys = {getattr(d, "loss_key", None) for d in wd.suite.detectors}
+    assert keys == {"train/loss"}
+
+
 def test_agent_memory_requires_explicit_url() -> None:
     from keepalive.memory.incidents import IncidentMemory
 

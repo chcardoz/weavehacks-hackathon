@@ -138,8 +138,13 @@ class DetectorSuite:
         detectors: Sequence[object] | None = None,
         stall: StallDetector | None = None,
         max_history: int = 2000,
+        loss_key: str = "loss",
     ) -> None:
-        self.detectors = list(detectors) if detectors is not None else [NaNLossDetector(), DivergenceDetector()]
+        self.detectors = (
+            list(detectors)
+            if detectors is not None
+            else [NaNLossDetector(loss_key=loss_key), DivergenceDetector(loss_key=loss_key)]
+        )
         self.stall = stall if stall is not None else StallDetector()
         self._history: collections.deque[MetricSnapshot] = collections.deque(maxlen=max_history)
         self.tripped = False

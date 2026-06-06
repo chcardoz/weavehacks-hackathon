@@ -157,6 +157,14 @@ class TestDetectorSuite:
         suite.tripped = True
         assert suite.idle_check(now=1050.0) is None
 
+    def test_custom_loss_key_reaches_default_detectors(self) -> None:
+        suite = DetectorSuite(loss_key="train/loss")
+        assert suite.observe(snap(0, loss=math.nan)) is None  # wrong key, ignored
+        event = suite.observe(snap(1, **{"train/loss": math.nan}))
+        assert event is not None
+        assert event.kind is FailureKind.NAN_LOSS
+        assert "train/loss" in event.message
+
     def test_scan_logline_respects_tripped(self) -> None:
         suite = DetectorSuite()
         first = suite.scan_logline("CUDA out of memory")

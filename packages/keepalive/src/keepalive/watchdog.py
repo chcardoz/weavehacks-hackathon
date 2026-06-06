@@ -218,7 +218,7 @@ class Watchdog:
         if self._suite is None:
             from .detect.rules import DetectorSuite
 
-            self._suite = DetectorSuite()
+            self._suite = DetectorSuite(loss_key=self._loss_key)
         return self._suite
 
     @property
