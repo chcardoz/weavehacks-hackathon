@@ -18,9 +18,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 
-const nav = [
-  { title: "API keys", href: "/keys", icon: KeyRound },
-]
+const nav = [{ title: "API keys", href: "/keys", icon: KeyRound }]
 
 export function AppSidebar({
   userEmail,

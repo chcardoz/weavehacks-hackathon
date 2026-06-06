@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Copy, KeyRound, LogOut, Plus, Trash2 } from "lucide-react"
+import { Copy, KeyRound, Plus, Trash2 } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import {
@@ -52,13 +52,7 @@ function fmtDate(value: string | null): string {
   })
 }
 
-export function KeysClient({
-  keys,
-  userEmail,
-}: {
-  keys: ApiKeyRow[]
-  userEmail: string
-}) {
+export function KeysClient({ keys }: { keys: ApiKeyRow[] }) {
   const router = useRouter()
   const [createOpen, setCreateOpen] = useState(false)
   const [name, setName] = useState("")
@@ -103,23 +97,8 @@ export function KeysClient({
     toast.success("Copied to clipboard")
   }
 
-  async function onSignOut() {
-    await authClient.signOut()
-    router.push("/sign-in")
-  }
-
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <div className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">API keys</h1>
-          <p className="text-sm text-muted-foreground">{userEmail}</p>
-        </div>
-        <Button variant="ghost" size="sm" onClick={onSignOut}>
-          <LogOut /> Sign out
-        </Button>
-      </div>
-
+    <div className="mx-auto w-full max-w-4xl">
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div className="space-y-1.5">
@@ -255,6 +234,6 @@ export function KeysClient({
           <Button onClick={() => setNewKey(null)}>Done</Button>
         </DialogFooter>
       </Dialog>
-    </main>
+    </div>
   )
 }

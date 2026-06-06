@@ -27,5 +27,5 @@ export default async function KeysPage() {
         : k.lastRequest as unknown as string | null,
   }))
 
-  return <KeysClient keys={rows} userEmail={session.user.email} />
+  return <KeysClient keys={rows} />
 }
