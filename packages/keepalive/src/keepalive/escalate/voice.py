@@ -46,7 +46,9 @@ class VoiceNoteBuilder:
             return content
         read = getattr(response, "read", None)
         if callable(read):
-            return read()
+            data = read()
+            if isinstance(data, bytes):
+                return data
         if isinstance(response, bytes):
             return response
         raise TypeError("TTS response did not expose bytes via .content or .read()")

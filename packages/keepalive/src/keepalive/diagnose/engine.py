@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import json
 from collections.abc import Callable
@@ -112,9 +113,6 @@ class DiagnosisEngine:
 
                 if name == "submit_diagnosis":
                     diagnosis = self._build_diagnosis(args, model)
-                    messages.append(
-                        {"role": "tool", "tool_call_id": tc.id, "content": "diagnosis recorded"}
-                    )
                     continue
 
                 result = self._dispatch_tool(name, args, fetcher)
@@ -138,10 +136,8 @@ class DiagnosisEngine:
             )
 
         if self._cache is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._cache.set(cache_key, json.dumps(dataclasses.asdict(diagnosis), default=str))
-            except Exception:
-                pass
 
         return diagnosis
 

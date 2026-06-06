@@ -19,7 +19,7 @@ class SignalRouter:
         if self._injected is not None:
             return self._injected
         try:
-            from redisvl.extensions.router import Route, SemanticRouter
+            from redisvl.extensions.router import Route, SemanticRouter  # pyright: ignore[reportMissingImports]
 
             routes = [Route(name=name, references=refs) for name, refs in _ROUTES.items()]
             self._injected = SemanticRouter(

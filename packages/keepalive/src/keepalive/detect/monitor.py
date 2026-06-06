@@ -5,7 +5,7 @@ from collections.abc import Callable
 from typing import Any
 
 from keepalive.detect.rules import DetectorSuite
-from keepalive.types import FailureEvent, MetricSnapshot
+from keepalive.types import FailureEvent, KeepaliveError, MetricSnapshot
 
 
 def _is_numeric(value: Any) -> bool:
@@ -25,14 +25,14 @@ class MetricHook:
         if self._installed:
             return
         self._run = run
-        self._original_log = run.log
-        original = self._original_log
+        original = run.log
+        self._original_log = original
 
         def patched(data: dict[str, Any], *args: Any, **kwargs: Any) -> Any:
             result = original(data, *args, **kwargs)
             try:
                 self._handle(data)
-            except FailureEvent:
+            except KeepaliveError:
                 raise
             except Exception:
                 pass
@@ -91,11 +91,7 @@ class HistoryPoller:
                 continue
             step = int(step_raw)
             timestamp = row.get("_timestamp")
-            metrics = {
-                k: float(v)
-                for k, v in row.items()
-                if not k.startswith("_") and _is_numeric(v)
-            }
+            metrics = {k: float(v) for k, v in row.items() if not k.startswith("_") and _is_numeric(v)}
             kwargs: dict[str, Any] = {"step": step, "metrics": metrics}
             if timestamp is not None and _is_numeric(timestamp):
                 kwargs["timestamp"] = float(timestamp)

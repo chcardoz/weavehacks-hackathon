@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 
@@ -12,7 +13,7 @@ class DiagnosisCache:
         if self._injected is not None:
             return self._injected
         try:
-            from redisvl.extensions.llmcache import SemanticCache
+            from redisvl.extensions.llmcache import SemanticCache  # pyright: ignore[reportMissingImports]
 
             self._injected = SemanticCache(
                 name="keepalive:diagcache",
@@ -39,7 +40,5 @@ class DiagnosisCache:
         cache = self._cache()
         if cache is None:
             return
-        try:
+        with contextlib.suppress(Exception):
             cache.store(prompt=prompt, response=response)
-        except Exception:
-            pass

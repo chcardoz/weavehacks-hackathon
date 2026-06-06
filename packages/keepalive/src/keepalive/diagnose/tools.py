@@ -37,9 +37,7 @@ class RunDataFetcher:
         for row in rows[-last_n:]:
             numeric: dict[str, Any] = {}
             for k, v in row.items():
-                if k == "_step":
-                    numeric[k] = v
-                elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                if k == "_step" or (isinstance(v, (int, float)) and not isinstance(v, bool)):
                     numeric[k] = v
             if numeric:
                 cleaned.append(numeric)

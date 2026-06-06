@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from ..config import Settings
 from ..types import ProbeResult, ProbeSpec, ProbeState, RunContext
@@ -69,11 +69,11 @@ class LocalExecutor:
                 error = "probe run timed out"
         except subprocess.CalledProcessError as exc:
             error = f"git worktree setup failed: {(exc.stderr or '')[-500:]}"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             error = f"local executor error: {exc}"
         finally:
             self._procs.pop(spec.id, None)
-            try:
+            with contextlib.suppress(Exception):
                 subprocess.run(
                     ["git", "worktree", "remove", "--force", str(worktree_dir)],
                     cwd=self._repo_root,
@@ -81,8 +81,6 @@ class LocalExecutor:
                     capture_output=True,
                     text=True,
                 )
-            except Exception:
-                pass
 
         return self._collect_result(spec, ctx, error, returncode, stderr_tail)
 
@@ -106,7 +104,7 @@ class LocalExecutor:
                 final_loss, history = judge.fetch_probe_metrics(
                     f"{ctx.entity}/{ctx.project}/{wandb_run_id}", api=api, loss_key=ctx.loss_key
                 )
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
 
         succeeded = (returncode == 0 or wandb_run_id is not None) and error != "probe run timed out"
@@ -129,8 +127,6 @@ class LocalExecutor:
     def kill(self, spec: ProbeSpec) -> None:
         proc = self._procs.get(spec.id)
         if proc is not None:
-            try:
+            with contextlib.suppress(Exception):
                 proc.terminate()
-            except Exception:
-                pass
             self._procs.pop(spec.id, None)

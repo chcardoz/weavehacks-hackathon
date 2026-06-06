@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import Any
 
@@ -79,7 +80,7 @@ class CursorClient:
 
     def _load_sdk(self) -> None:
         try:
-            import cursor_sdk
+            import cursor_sdk  # pyright: ignore[reportMissingImports]
 
             self._sdk = cursor_sdk
             self._sdk_kind = "cursor_sdk"
@@ -87,7 +88,7 @@ class CursorClient:
         except ImportError:
             pass
         try:
-            import cursor_agent_sdk
+            import cursor_agent_sdk  # pyright: ignore[reportMissingImports]
 
             self._sdk = cursor_agent_sdk
             self._sdk_kind = "cursor_agent_sdk"
@@ -227,8 +228,6 @@ class CursorClient:
                 if resp.status_code >= 400:
                     self._http.delete(f"/agents/{spec.agent_id}")
             except Exception:
-                try:
+                with contextlib.suppress(Exception):
                     self._http.delete(f"/agents/{spec.agent_id}")
-                except Exception:
-                    pass
         spec.state = ProbeState.KILLED

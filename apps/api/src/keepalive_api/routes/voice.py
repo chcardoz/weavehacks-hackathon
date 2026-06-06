@@ -59,15 +59,6 @@ def _player_html(note_id: str) -> str:
 </html>"""
 
 
-@router.get("/a/{note_id}")
-async def voice_note_page(note_id: str, request: Request) -> HTMLResponse:
-    redis = get_redis(request)
-    exists = await redis.exists(f"audio:{note_id}")
-    if not exists:
-        raise HTTPException(status_code=404, detail="voice note not found")
-    return HTMLResponse(content=_player_html(note_id))
-
-
 @router.get("/a/{note_id}.mp3")
 async def voice_note_audio(note_id: str, request: Request) -> Response:
     redis = get_redis(request)
@@ -75,3 +66,12 @@ async def voice_note_audio(note_id: str, request: Request) -> Response:
     if audio is None:
         raise HTTPException(status_code=404, detail="voice note not found")
     return Response(content=audio, media_type="audio/mpeg")
+
+
+@router.get("/a/{note_id}")
+async def voice_note_page(note_id: str, request: Request) -> HTMLResponse:
+    redis = get_redis(request)
+    exists = await redis.exists(f"audio:{note_id}")
+    if not exists:
+        raise HTTPException(status_code=404, detail="voice note not found")
+    return HTMLResponse(content=_player_html(note_id))

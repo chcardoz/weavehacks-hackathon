@@ -9,8 +9,8 @@ from .sandbox import SandboxExecutor
 __all__ = [
     "CursorClient",
     "IntegrationNotConnectedError",
-    "SandboxExecutor",
     "LocalExecutor",
-    "race",
+    "SandboxExecutor",
     "pick_winner",
+    "race",
 ]

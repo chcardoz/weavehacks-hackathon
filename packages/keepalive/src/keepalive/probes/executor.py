@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import contextlib
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable
 
 from ..types import ProbeExecutor, ProbeResult, ProbeSpec, ProbeState, RunContext
 from . import judge
@@ -35,7 +36,7 @@ def race(
                 spec = future_to_spec[future]
                 try:
                     result = future.result()
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     spec.state = ProbeState.FAILED
                     result = ProbeResult(
                         spec=spec,
@@ -61,7 +62,5 @@ def race(
 
 
 def _kill(executor: ProbeExecutor, spec: ProbeSpec) -> None:
-    try:
+    with contextlib.suppress(Exception):
         executor.kill(spec)
-    except Exception:
-        pass

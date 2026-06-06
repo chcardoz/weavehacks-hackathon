@@ -18,7 +18,7 @@ class IncidentMemory:
         if self._injected is not None:
             return True
         try:
-            import agent_memory_client  # noqa: F401
+            import agent_memory_client  # noqa: F401 # pyright: ignore[reportMissingImports]
         except Exception:
             return False
         return True
@@ -27,7 +27,7 @@ class IncidentMemory:
         if self._injected is not None:
             return self._injected
         try:
-            from agent_memory_client import MemoryAPIClient, MemoryClientConfig
+            from agent_memory_client import MemoryAPIClient, MemoryClientConfig  # pyright: ignore[reportMissingImports]
 
             base_url = os.environ.get("AGENT_MEMORY_URL", "http://localhost:8000")
             return MemoryAPIClient(MemoryClientConfig(base_url=base_url, default_namespace="keepalive"))
@@ -41,7 +41,7 @@ class IncidentMemory:
         except RuntimeError:
             try:
                 loop = asyncio.get_event_loop()
-                loop.create_task(coro)
+                _task = loop.create_task(coro)  # noqa: RUF006 — fire-and-forget by design
             except Exception:
                 pass
         except Exception:

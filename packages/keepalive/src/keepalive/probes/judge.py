@@ -60,7 +60,9 @@ def find_probe_run(api: Any, entity: str, project: str, group: str, name: str) -
 
 def pick_winner(results: list[ProbeResult], loss_key: str = "loss") -> ProbeResult | None:
     candidates = [
-        r for r in results if r.state == ProbeState.FINISHED and r.final_loss is not None and math.isfinite(r.final_loss)
+        r
+        for r in results
+        if r.state == ProbeState.FINISHED and r.final_loss is not None and math.isfinite(r.final_loss)
     ]
     if not candidates:
         return None

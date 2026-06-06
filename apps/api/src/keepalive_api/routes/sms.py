@@ -5,7 +5,7 @@ from xml.sax.saxutils import escape
 from fastapi import APIRouter, HTTPException, Request, Response
 from twilio.request_validator import RequestValidator
 
-from keepalive_api.deps import get_redis, get_settings, get_twilio
+from keepalive_api.deps import get_redis, get_settings
 
 router = APIRouter()
 
@@ -25,14 +25,13 @@ def _twiml(message: str) -> str:
 async def inbound_sms(request: Request) -> Response:
     settings = get_settings(request)
     redis = get_redis(request)
-    twilio = get_twilio(request)
 
     form = await request.form()
     params = {k: str(v) for k, v in form.items()}
     from_number = params.get("From", "")
     raw_body = params.get("Body", "")
 
-    if twilio is not None:
+    if settings.twilio_auth_token:
         validator = RequestValidator(settings.twilio_auth_token)
         signature = request.headers.get("X-Twilio-Signature", "")
         url = f"{settings.public_base_url}/sms"

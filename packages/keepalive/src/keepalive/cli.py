@@ -5,7 +5,7 @@ import queue
 import subprocess
 import sys
 import threading
-from typing import Optional
+from typing import Any
 
 import typer
 
@@ -22,12 +22,12 @@ from .watchdog import Watchdog
 app = typer.Typer(add_completion=False, help="keepalive — a watchdog for GPU training runs.")
 
 
-def _tail_stderr(stream: object, events: queue.Queue[FailureEvent], suite: object) -> None:
-    for raw in iter(getattr(stream, "readline"), ""):
+def _tail_stderr(stream: Any, events: queue.Queue[FailureEvent], suite: Any) -> None:
+    for raw in iter(stream.readline, ""):
         line = raw.rstrip("\n")
         print(line, file=sys.stderr)
         try:
-            event = suite.scan_logline(line)  # type: ignore[attr-defined]
+            event = suite.scan_logline(line)
         except Exception:
             event = None
         if event is not None:
@@ -54,10 +54,10 @@ def _dispatch(wd: Watchdog, event: FailureEvent) -> int:
 )
 def run(
     ctx: typer.Context,
-    run_path: Optional[str] = typer.Option(None, "--run-path", help="entity/project/run_id for history polling"),
-    timeout: Optional[float] = typer.Option(None, "--timeout", help="escalation timeout in seconds"),
+    run_path: str | None = typer.Option(None, "--run-path", help="entity/project/run_id for history polling"),
+    timeout: float | None = typer.Option(None, "--timeout", help="escalation timeout in seconds"),
     checkpoint_dir: str = typer.Option("checkpoints", "--checkpoint-dir"),
-    loss_key: Optional[str] = typer.Option(None, "--loss-key"),
+    loss_key: str | None = typer.Option(None, "--loss-key"),
 ) -> None:
     cmd = list(ctx.args)
     if not cmd:

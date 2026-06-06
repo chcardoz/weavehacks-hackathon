@@ -25,6 +25,8 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["packages/keepalive/tests", "apps/api/tests"]
+addopts = "--import-mode=importlib"
+consider_namespace_packages = true
 asyncio_mode = "auto"
 filterwarnings = ["ignore::DeprecationWarning"]
 

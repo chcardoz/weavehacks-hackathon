@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import shlex
 from typing import Any
 
@@ -33,10 +34,8 @@ class _Session:
 
     def cleanup(self) -> None:
         if self._cleanup_fn is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._cleanup_fn()
-            except Exception:
-                pass
 
 
 class SandboxExecutor:
@@ -84,15 +83,16 @@ class SandboxExecutor:
         session: Any | None = None
         error: str | None = None
         try:
-            session = self._open_session()
-            self._sessions[spec.id] = session
+            sess = self._open_session()
+            session = sess
+            self._sessions[spec.id] = sess
             script = self._build_script(spec, ctx, steps)
-            result = session.run_command(script)
+            result = sess.run_command(script)
             returncode = getattr(result, "returncode", 0)
             stdout = getattr(result, "stdout", "") or ""
             if returncode != 0:
                 error = f"probe command exited {returncode}: {stdout[-500:]}"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             error = f"sandbox error: {exc}"
         finally:
             if session is not None:
@@ -109,14 +109,12 @@ class SandboxExecutor:
             import wandb
 
             api = wandb.Api()
-            wandb_run_id = judge.find_probe_run(
-                api, ctx.entity, ctx.project, f"watchdog-{ctx.run_id}", spec.id
-            )
+            wandb_run_id = judge.find_probe_run(api, ctx.entity, ctx.project, f"watchdog-{ctx.run_id}", spec.id)
             if wandb_run_id is not None:
                 final_loss, history = judge.fetch_probe_metrics(
                     f"{ctx.entity}/{ctx.project}/{wandb_run_id}", api=api, loss_key=ctx.loss_key
                 )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if error is None:
                 error = f"metric fetch failed: {exc}"
 
@@ -144,17 +142,13 @@ class SandboxExecutor:
         if session is not None:
             cleanup = getattr(session, "cleanup", None)
             if callable(cleanup):
-                try:
+                with contextlib.suppress(Exception):
                     cleanup()
-                except Exception:
-                    pass
             else:
                 for name in ("terminate", "stop", "close"):
                     fn = getattr(session, name, None)
                     if callable(fn):
-                        try:
+                        with contextlib.suppress(Exception):
                             fn()
-                        except Exception:
-                            pass
                         break
             self._sessions.pop(spec.id, None)

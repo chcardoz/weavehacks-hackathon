@@ -146,7 +146,7 @@ class _LocalDeadlines:
 def _safely(fn: Callable[[], Any], what: str = "") -> Any:
     try:
         return fn()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _log.warning("keepalive: best-effort step failed (%s): %r", what or fn, exc)
         return None
 
@@ -403,16 +403,12 @@ class Watchdog:
 
         incident.trace_url = _safely(current_trace_url, "trace_url")
 
-        escalate_enabled = (
-            "sms" in self._escalate and bool(self.settings.api_key) and bool(self.settings.phone_number)
-        )
+        escalate_enabled = "sms" in self._escalate and bool(self.settings.api_key) and bool(self.settings.phone_number)
         reply: HumanReply | None = None
         if escalate_enabled:
             voice = VoiceNoteBuilder(self.settings)
             voice_url = _safely(
-                lambda: self.escalation.upload_voice_note(
-                    incident.id, voice.synthesize(voice.script_for(incident))
-                ),
+                lambda: self.escalation.upload_voice_note(incident.id, voice.synthesize(voice.script_for(incident))),
                 "upload_voice_note",
             )
             _safely(
@@ -453,7 +449,7 @@ class Watchdog:
         self._publish("authority_transferred", {"incident_id": incident.id})
 
         incident.status = IncidentStatus.PROBING
-        hypotheses = (diagnosis.hypotheses[: self.settings.max_probes] if diagnosis else [])
+        hypotheses = diagnosis.hypotheses[: self.settings.max_probes] if diagnosis else []
         if not hypotheses:
             incident.status = IncidentStatus.FAILED
             _safely(lambda: self.escalation.send_recap(incident, "No fix hypotheses generated."), "recap")
@@ -474,7 +470,7 @@ class Watchdog:
                     "recap",
                 )
                 raise KeepaliveStop("cursor integration not connected") from None
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 _log.warning("keepalive: probe spawn skipped: %r", exc)
                 continue
 
@@ -527,7 +523,7 @@ class Watchdog:
                 import wandb  # type: ignore[import-not-found]
 
                 run = wandb.Api().run(self._ctx.run_path)
-            run.tags = tuple(getattr(run, "tags", ()) or ()) + ("keepalive-recovered",)
+            run.tags = (*tuple(getattr(run, "tags", ()) or ()), "keepalive-recovered")
             note = f"keepalive recovered via probe {winner.spec.id} branch {winner.spec.branch}"
             existing = getattr(run, "notes", "") or ""
             run.notes = (existing + "\n" + note).strip()

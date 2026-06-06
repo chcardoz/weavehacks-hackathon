@@ -16,7 +16,7 @@ class ApiSettings:
     voice_note_ttl_s: int = 86400
 
     @classmethod
-    def from_env(cls) -> "ApiSettings":
+    def from_env(cls) -> ApiSettings:
         raw_keys = os.environ.get("KEEPALIVE_DEV_KEYS", "")
         dev_keys = frozenset(k.strip() for k in raw_keys.split(",") if k.strip())
         return cls(
