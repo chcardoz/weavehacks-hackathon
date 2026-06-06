@@ -1,18 +1,18 @@
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { KeysClient, type ApiKeyRow } from "./keys-client";
+import { headers } from "next/headers"
+import { redirect } from "next/navigation"
+import { auth } from "@/lib/auth"
+import { KeysClient, type ApiKeyRow } from "./keys-client"
 
 export default async function KeysPage() {
-  const hdrs = await headers();
-  const session = await auth.api.getSession({ headers: hdrs });
+  const hdrs = await headers()
+  const session = await auth.api.getSession({ headers: hdrs })
   if (!session) {
-    redirect("/sign-in");
+    redirect("/sign-in")
   }
 
-  const keys = await auth.api.listApiKeys({ headers: hdrs });
+  const { apiKeys } = await auth.api.listApiKeys({ headers: hdrs })
 
-  const rows: ApiKeyRow[] = keys.map((k) => ({
+  const rows: ApiKeyRow[] = apiKeys.map((k) => ({
     id: k.id,
     name: k.name,
     start: k.start,
@@ -20,12 +20,12 @@ export default async function KeysPage() {
     createdAt:
       k.createdAt instanceof Date
         ? k.createdAt.toISOString()
-        : (k.createdAt as unknown as string),
+        : k.createdAt as unknown as string,
     lastRequest:
       k.lastRequest instanceof Date
         ? k.lastRequest.toISOString()
-        : (k.lastRequest as unknown as string | null),
-  }));
+        : k.lastRequest as unknown as string | null,
+  }))
 
-  return <KeysClient keys={rows} userEmail={session.user.email} />;
+  return <KeysClient keys={rows} userEmail={session.user.email} />
 }

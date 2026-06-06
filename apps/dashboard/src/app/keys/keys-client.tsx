@@ -1,28 +1,28 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { Copy, KeyRound, LogOut, Plus, Trash2 } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { Copy, KeyRound, LogOut, Plus, Trash2 } from "lucide-react"
+import { authClient } from "@/lib/auth-client"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/components/ui/card"
 import {
   Dialog,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -30,82 +30,82 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui/table"
 
 export interface ApiKeyRow {
-  id: string;
-  name: string | null;
-  start: string | null;
-  enabled: boolean | null;
-  createdAt: string;
-  lastRequest: string | null;
+  id: string
+  name: string | null
+  start: string | null
+  enabled: boolean | null
+  createdAt: string
+  lastRequest: string | null
 }
 
 function fmtDate(value: string | null): string {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (!value) return "—"
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return "—"
   return d.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
-  });
+  })
 }
 
 export function KeysClient({
   keys,
   userEmail,
 }: {
-  keys: ApiKeyRow[];
-  userEmail: string;
+  keys: ApiKeyRow[]
+  userEmail: string
 }) {
-  const router = useRouter();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [revoking, setRevoking] = useState<string | null>(null);
-  const [newKey, setNewKey] = useState<string | null>(null);
+  const router = useRouter()
+  const [createOpen, setCreateOpen] = useState(false)
+  const [name, setName] = useState("")
+  const [creating, setCreating] = useState(false)
+  const [revoking, setRevoking] = useState<string | null>(null)
+  const [newKey, setNewKey] = useState<string | null>(null)
 
   async function onCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setCreating(true);
+    e.preventDefault()
+    setCreating(true)
     const { data, error } = await authClient.apiKey.create({
       name: name.trim() || undefined,
       prefix: "ka_live_",
-    });
-    setCreating(false);
+    })
+    setCreating(false)
     if (error || !data) {
-      toast.error(error?.message ?? "Could not create key");
-      return;
+      toast.error(error?.message ?? "Could not create key")
+      return
     }
-    setCreateOpen(false);
-    setName("");
-    setNewKey(data.key);
-    router.refresh();
+    setCreateOpen(false)
+    setName("")
+    setNewKey(data.key)
+    router.refresh()
   }
 
   async function onRevoke(keyId: string) {
-    if (!window.confirm("Revoke this key? This cannot be undone.")) return;
-    setRevoking(keyId);
-    const { error } = await authClient.apiKey.delete({ keyId });
-    setRevoking(null);
+    if (!window.confirm("Revoke this key? This cannot be undone.")) return
+    setRevoking(keyId)
+    const { error } = await authClient.apiKey.delete({ keyId })
+    setRevoking(null)
     if (error) {
-      toast.error(error.message ?? "Could not revoke key");
-      return;
+      toast.error(error.message ?? "Could not revoke key")
+      return
     }
-    toast.success("Key revoked");
-    router.refresh();
+    toast.success("Key revoked")
+    router.refresh()
   }
 
   async function copyKey() {
-    if (!newKey) return;
-    await navigator.clipboard.writeText(newKey);
-    toast.success("Copied to clipboard");
+    if (!newKey) return
+    await navigator.clipboard.writeText(newKey)
+    toast.success("Copied to clipboard")
   }
 
   async function onSignOut() {
-    await authClient.signOut();
-    router.push("/sign-in");
+    await authClient.signOut()
+    router.push("/sign-in")
   }
 
   return (
@@ -230,7 +230,7 @@ export function KeysClient({
       <Dialog
         open={newKey !== null}
         onOpenChange={(open) => {
-          if (!open) setNewKey(null);
+          if (!open) setNewKey(null)
         }}
       >
         <DialogHeader>
@@ -256,5 +256,5 @@ export function KeysClient({
         </DialogFooter>
       </Dialog>
     </main>
-  );
+  )
 }

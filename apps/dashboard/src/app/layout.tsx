@@ -1,12 +1,12 @@
-import type { Metadata } from "next";
-import { Toaster } from "sonner";
-import "./globals.css";
+import type { Metadata } from "next"
+import { Toaster } from "sonner"
+import "./globals.css"
 
 export const metadata: Metadata = {
   title: "keepalive",
   description:
     "agents that hold you accountable — and stop waiting when you don't show up.",
-};
+}
 
 export default function RootLayout({
   children,
@@ -18,5 +18,5 @@ export default function RootLayout({
         <Toaster theme="dark" position="bottom-right" richColors />
       </body>
     </html>
-  );
+  )
 }

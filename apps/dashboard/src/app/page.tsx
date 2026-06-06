@@ -1,11 +1,11 @@
-import Link from "next/link";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { buttonVariants } from "@/components/ui/button";
+import Link from "next/link"
+import { headers } from "next/headers"
+import { auth } from "@/lib/auth"
+import { buttonVariants } from "@/components/ui/button"
 
 export default async function Home() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  const target = session ? "/keys" : "/sign-in";
+  const session = await auth.api.getSession({ headers: await headers() })
+  const target = session ? "/keys" : "/sign-in"
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-8 px-6 py-16">
@@ -24,7 +24,9 @@ export default async function Home() {
           A watchdog for your GPU training runs.
         </p>
         <pre className="overflow-x-auto rounded-lg border border-border bg-card p-4 text-sm">
-          <code className="font-mono text-foreground">pip install keepalive</code>
+          <code className="font-mono text-foreground">
+            pip install keepalive
+          </code>
         </pre>
       </div>
 
@@ -34,5 +36,5 @@ export default async function Home() {
         </Link>
       </div>
     </main>
-  );
+  )
 }

@@ -1,37 +1,37 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { toast } from "sonner";
-import { authClient } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { toast } from "sonner"
+import { authClient } from "@/lib/auth-client"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 export default function SignInPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const router = useRouter()
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
 
   async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await authClient.signIn.email({ email, password });
-    setLoading(false);
+    e.preventDefault()
+    setLoading(true)
+    const { error } = await authClient.signIn.email({ email, password })
+    setLoading(false)
     if (error) {
-      toast.error(error.message ?? "Sign in failed");
-      return;
+      toast.error(error.message ?? "Sign in failed")
+      return
     }
-    router.push("/keys");
+    router.push("/keys")
   }
 
   return (
@@ -78,5 +78,5 @@ export default function SignInPage() {
         </CardContent>
       </Card>
     </main>
-  );
+  )
 }

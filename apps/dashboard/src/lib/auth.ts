@@ -1,8 +1,8 @@
-import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { apiKey } from "better-auth/plugins";
-import { db } from "@/lib/db";
-import { schema } from "@/db/schema";
+import { betterAuth } from "better-auth"
+import { drizzleAdapter } from "better-auth/adapters/drizzle"
+import { apiKey } from "@better-auth/api-key"
+import { db } from "@/lib/db"
+import { schema } from "@/db/schema"
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -18,7 +18,7 @@ export const auth = betterAuth({
       enableMetadata: true,
     }),
   ],
-});
+})
 
-export type Session = typeof auth.$Infer.Session;
-export type User = Session["user"];
+export type Session = typeof auth.$Infer.Session
+export type User = Session["user"]

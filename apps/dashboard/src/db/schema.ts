@@ -1,10 +1,4 @@
-import {
-  boolean,
-  integer,
-  pgTable,
-  text,
-  timestamp,
-} from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core"
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -20,7 +14,7 @@ export const user = pgTable("user", {
   updatedAt: timestamp("updated_at")
     .$defaultFn(() => new Date())
     .notNull(),
-});
+})
 
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
@@ -33,7 +27,7 @@ export const session = pgTable("session", {
   userId: text("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
-});
+})
 
 export const account = pgTable("account", {
   id: text("id").primaryKey(),
@@ -51,7 +45,7 @@ export const account = pgTable("account", {
   password: text("password"),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
-});
+})
 
 export const verification = pgTable("verification", {
   id: text("id").primaryKey(),
@@ -60,7 +54,7 @@ export const verification = pgTable("verification", {
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at").$defaultFn(() => new Date()),
-});
+})
 
 export const apikey = pgTable("apikey", {
   id: text("id").primaryKey(),
@@ -92,7 +86,7 @@ export const apikey = pgTable("apikey", {
     .notNull(),
   permissions: text("permissions"),
   metadata: text("metadata"),
-});
+})
 
 export const schema = {
   user,
@@ -100,4 +94,4 @@ export const schema = {
   account,
   verification,
   apikey,
-};
+}
