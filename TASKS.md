@@ -8,20 +8,34 @@ servers; unit tests only get run by the top-level agent in Phase 3.
 ## Phases
 
 - [x] Phase 0 — scaffold: uv/pnpm workspaces, ruff/pyright config, types.py + config.py contracts
-- [ ] Phase 1 — parallel code writing (8 subagents, disjoint dirs, NO tests, NO commits):
-  - [ ] 1a detect/ + events.py + tracing.py
-  - [ ] 1b diagnose/
-  - [ ] 1c escalate/ + memory/
-  - [ ] 1d probes/
-  - [ ] 1e watchdog.py + cli.py + __init__.py
-  - [ ] 1f apps/api
-  - [ ] 1g apps/dashboard
-  - [ ] 1h docs/ + infra/ + .github/workflows
-- [ ] Phase 2 — top-level reconciliation pass (fix cross-module import/signature drift), commit per area
-- [ ] Phase 3 — parallel test writing (python unit tests + api tests + dashboard vitest)
-- [ ] Phase 4 — run `uv sync` + `uv run pytest` + `uv run ruff check` + `uv run pyright`; fix; commit
-- [ ] Phase 5 — pnpm install + oxlint + vitest for dashboard (best effort); fix; commit
-- [ ] Phase 6 — final TASKS.md update + report
+- [x] Phase 1 — parallel code writing (8 subagents, disjoint dirs, NO tests, NO commits):
+  - [x] 1a detect/ + events.py + tracing.py
+  - [x] 1b diagnose/
+  - [x] 1c escalate/ + memory/
+  - [x] 1d probes/
+  - [x] 1e watchdog.py + cli.py + __init__.py
+  - [x] 1f apps/api
+  - [x] 1g apps/dashboard
+  - [x] 1h docs/ + infra/ + .github/workflows
+- [x] Phase 2 — reconciliation (fixed race() on_update callback shape), committed per area
+- [x] Phase 3 — test writing: 164 python tests (library + api) + dashboard vitest
+- [x] Phase 4 — pytest 164 passed; ruff check + format clean; pyright 0 errors
+- [x] Phase 5 — pnpm install; oxlint 0/0; oxfmt clean; vitest 4 passed; tsc clean
+- [x] Phase 6 — final TASKS.md update + report
+
+## State at handoff (2026-06-06)
+
+All code written and unit-verified. NOT yet done (deliberately left for humans):
+integration testing against real wandb/OpenAI/Cursor/Twilio/Redis, running the api/dashboard
+servers, Neon `pnpm db:generate && db:migrate`, deployments (see infra/), demo training
+script + fault injector, W&B Sandbox hour-one smoke test (infra/wandb-sandboxes.md).
+
+Known soft spots to verify live:
+- SandboxExecutor resolves wandb Sandbox exec method defensively (public preview API undocumented)
+- Cursor REST response shapes parsed defensively (branch under target.branchName / branchName / git.branches)
+- better-auth show-once field assumed `data.key` on apiKey.create; delete param assumed `keyId` (tsc-checked)
+- agent-memory-server docker image name flagged "verify at event" in infra/redis.md
+- Watchdog stall detection in-process is heartbeat()-driven (no background thread); CLI mode polls idle_check
 
 Deliberately deferred to humans: integration testing, running servers, demo script, deployments.
 
