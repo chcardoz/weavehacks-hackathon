@@ -11,7 +11,7 @@ proving the **real** providers work.
 | Provider | What you need | Where |
 | -------- | ------------- | ----- |
 | W&B | `WANDB_API_KEY` | wandb.ai/settings |
-| OpenAI | `OPENAI_API_KEY` with billing | platform.openai.com |
+| OpenAI | `OPENAI_API_KEY` with billing — **goes on the relay**, not the library (end users never supply one) | platform.openai.com |
 | Cursor | **paid plan**, user key (`CURSOR_API_KEY`), GitHub App installed on the training repo | cursor.com/dashboard → API Keys + Integrations |
 | Telegram | bot token from @BotFather, webhook secret, your chat id (press Start on the bot) | [telegram.md](./telegram.md) |
 | Railway | project with relay + Redis 8 + memory server | [railway.md](./railway.md), [redis.md](./redis.md) |
@@ -101,17 +101,27 @@ Also generate one `gpt-4o-mini-tts` mp3 and play it — that's the voice note.
    [telegram.md](./telegram.md) §5. **Pass:** `GET /v1/incidents/<id>/reply` returns `"2"`.
 5. **Inbound reply, real phone:** tap a button on the message from step 3 (also try typing
    `2`). Same check.
-6. **Voice note:** `POST /v1/voice-notes` with an mp3, then `POST /v1/notify` with the
-   returned `voice_note_url`. **Pass:** a playable voice bubble arrives in the chat
-   (requires `PUBLIC_BASE_URL` publicly reachable — Telegram fetches the mp3 from it).
+6. **Voice note:** `POST /v1/notify` with a `voice_script` field — the relay runs TTS,
+   hosts the mp3, and sends the voice bubble. **Pass:** a playable voice bubble arrives
+   in the chat (requires the relay's `OPENAI_API_KEY` set and `PUBLIC_BASE_URL` publicly
+   reachable — Telegram fetches the mp3 from it).
+7. **LLM proxy:**
+   ```bash
+   curl -sS https://api.keepalive.club/v1/llm/chat/completions \
+     -H "Authorization: Bearer ka_live_..." -H "Content-Type: application/json" \
+     -d '{"model":"gpt-5.4-mini","messages":[{"role":"user","content":"ping"}]}'
+   ```
+   **Pass:** a chat completion comes back. Also check a disallowed model returns 400 and
+   a missing key returns 401.
 
 ## Phase 3 — library against live providers (no relay-side fakes left)
 
-On the GPU box (or any laptop — probes are CPU-only anyway), export the full library env
-(see [README.md](./README.md) master table: `KEEPALIVE_API_KEY`, `KEEPALIVE_API_URL=https://api.keepalive.club`,
-`KEEPALIVE_TELEGRAM_CHAT_ID`, `OPENAI_API_KEY`, `WANDB_API_KEY`, `CURSOR_API_KEY`,
-`REDIS_URL=<railway redis>`, `AGENT_MEMORY_URL=<railway memory service>`), then drive a
-tiny fault-injected run:
+On the GPU box (or any laptop — probes are CPU-only anyway), export the library env
+(see [README.md](./README.md) master table). The end-user set is just `KEEPALIVE_API_KEY`,
+`KEEPALIVE_API_URL=https://api.keepalive.club`, `KEEPALIVE_TELEGRAM_CHAT_ID`,
+`WANDB_API_KEY`, `CURSOR_API_KEY` — diagnosis and TTS ride the relay. For the demo box,
+also set `REDIS_URL=<railway redis>` and `AGENT_MEMORY_URL=<railway memory service>` so
+all five Redis uses are live. Then drive a tiny fault-injected run:
 
 ```python
 # smoke_e2e.py — must be a git repo connected to the Cursor GitHub App, with a commit pushed

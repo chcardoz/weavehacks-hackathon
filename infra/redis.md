@@ -5,6 +5,10 @@ Server (working + long-term incident memory), RedisVL SemanticRouter, and RedisV
 SemanticCache. Everything runs in the Railway project alongside the relay — no local
 containers.
 
+Library-side Redis is **opt-in**: end users don't set `REDIS_URL` or `AGENT_MEMORY_URL`
+at all (the watchdog falls back to in-process deadlines and skips the optional features).
+This runbook is for the demo box and the relay, where the full stack runs.
+
 ## Redis service
 
 - Railway → New → Database → Redis. **Pin the image to `redis:8`** in the service settings —

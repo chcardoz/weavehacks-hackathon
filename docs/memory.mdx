@@ -3,8 +3,13 @@ title: Memory & Redis
 description: The five load-bearing Redis uses.
 ---
 
-Redis is not a side note in keepalive — it does five distinct jobs. Run it from the
-`redis:8` image (the query engine is in core now; `redis-stack` is legacy).
+Redis is the **power-user / self-host** layer of keepalive — opt-in, not required. By
+default `REDIS_URL` and `AGENT_MEMORY_URL` are empty, and the core incident flow runs without
+Redis (in-process deadline timer, no event stream, no semantic router/cache, no memory). Set
+`REDIS_URL` to light up streams, ZSET deadlines, SemanticRouter, and SemanticCache; set
+`AGENT_MEMORY_URL` to activate incident memory. When both are set Redis does five distinct
+jobs. Run it from the `redis:8` image (the query engine is in core now; `redis-stack` is
+legacy).
 
 ## The five uses
 
@@ -23,7 +28,7 @@ Redis is not a side note in keepalive — it does five distinct jobs. Run it fro
     The headline integration. Working memory holds per-incident context; long-term memory
     gives cross-run incident recall with semantic search and dedup. This powers the
     "I've seen this NaN pattern before" moment in diagnosis. Runs as one Docker container
-    plus `pip install agent-memory-client`.
+    plus `pip install agent-memory-client`, and activates only when `AGENT_MEMORY_URL` is set.
   </Card>
   <Card title="4. RedisVL SemanticRouter" icon="route">
     Classifies a raw failure signal into an incident category

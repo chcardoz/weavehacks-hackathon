@@ -31,14 +31,14 @@ the [configuration reference](/reference/configuration). The most relevant:
 
 | Variable | Purpose |
 | -------- | ------- |
-| `KEEPALIVE_API_KEY` | Authenticate with the relay (Telegram / voice notes). |
+| `KEEPALIVE_API_KEY` | Authenticate with the relay (Telegram, voice notes, diagnosis-LLM proxy). |
 | `KEEPALIVE_TELEGRAM_CHAT_ID` | Destination Telegram chat for messages + voice notes. |
 | `KEEPALIVE_TIMEOUT` | Escalation deadline (seconds). Lower for demos. |
 | `KEEPALIVE_LOSS_KEY` | Metric key treated as loss (default `loss`). |
-| `OPENAI_API_KEY` | Diagnosis + TTS. |
-| `CURSOR_API_KEY` | Cursor cloud agents (probe code). |
 | `WANDB_API_KEY` | W&B metrics + Sandboxes. |
-| `REDIS_URL` | Streams, deadlines, memory. |
+| `CURSOR_API_KEY` | Cursor cloud agents (probe code). |
+| `OPENAI_API_KEY` | Optional — diagnosis override (calls OpenAI directly instead of the relay proxy). |
+| `REDIS_URL` | Optional — Streams, deadlines, semantic router/cache (self-host). |
 
 <Note>
 The in-process context manager ([door 1](/reference/watchdog)) gives zero-lag detection and

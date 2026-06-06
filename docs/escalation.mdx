@@ -13,9 +13,11 @@ A single **Telegram message** from the keepalive bot, containing:
 1. A one-line diagnosis of the failure.
 2. **Inline buttons** — ⏪ Roll back, 🔧 Apply fix, 🛑 Stop — plus a **🧵 View trace** URL
    button whenever a Weave trace link exists.
-3. An **AI voice note** that arrives as an actual voice bubble in the chat. The relay's
-   `sendVoice` call pulls the `gpt-4o-mini-tts` mp3 from the relay's public voice-note URL,
-   so the explanation plays inline — no link to a hosted page.
+3. An **AI voice note** that arrives as an actual voice bubble in the chat. The library
+   sends a `voice_script` string to the relay; the relay synthesizes the `gpt-4o-mini-tts`
+   mp3 with its own OpenAI key, hosts it, and pulls it into a `sendVoice` call so the
+   explanation plays inline — no link to a hosted page. TTS is best-effort: if it fails, the
+   text message still arrives.
 
 ## Reply semantics
 
@@ -31,15 +33,15 @@ See [control exceptions](/reference/watchdog#control-exceptions) for how your co
 catch these.
 
 <Note>
-Button taps carry `"{incident_id}:{choice}"` in their `callback_data`, so a tapped reply
-lands in Redis at `reply:{incident_id}` directly. A typed 1/2/3 is resolved through the
-`active:{chat_id}` mapping to the same place.
+Button taps carry `"{incident_id}:{choice}"` in their `callback_data`; a typed 1/2/3 is
+resolved through the relay's `active:{chat_id}` mapping. Either way the library polls the
+relay for the reply.
 </Note>
 
 ## Deadlines and authority transfer
 
-When the incident is escalated, keepalive arms a deadline in a **Redis ZSET**
-(`keepalive:deadlines`) and polls for your reply every couple of seconds. Two outcomes:
+When the incident is escalated, keepalive arms a deadline and polls for your reply every
+couple of seconds. Two outcomes:
 
 - **You reply in time** → keepalive does what you asked (1/2/3).
 - **The deadline expires** → authority transfers. keepalive stops waiting and moves to
@@ -49,9 +51,15 @@ When the incident is escalated, keepalive arms a deadline in a **Redis ZSET**
 The timeout is configurable. The default is 120s (`KEEPALIVE_TIMEOUT` /
 `timeout=` on `watchdog()`); for a live demo, drop it to ~20s for pacing.
 
+By default the deadline is an **in-process timer** — no Redis required. It lives in the
+training process alongside the watchdog, so it won't survive a process restart; that's fine,
+because if the training process dies there's no run left to wait on. When `REDIS_URL` is set
+(power-user / self-host), the deadline is armed in a **Redis ZSET** (`keepalive:deadlines`)
+instead, with the same behavior.
+
 <Note>
-ZSET polling is the reliable mechanism. Redis keyspace `Ex` expiry notifications are
-best-effort and are used only as demo flair, never as the source of truth.
+When Redis is in play, ZSET polling is the reliable mechanism. Redis keyspace `Ex` expiry
+notifications are best-effort and are used only as demo flair, never as the source of truth.
 </Note>
 
 ## Why Telegram

@@ -24,8 +24,8 @@ trace tree. Here is the full path from detection to recovery:
   <Step title="Escalate">
     You get a Telegram message with inline buttons (**⏪ Roll back**, **🔧 Apply fix**,
     **🛑 Stop**) plus an AI voice note that plays inline in the chat, and a deadline is
-    armed in a Redis ZSET. Tap a button or type **1** (rollback), **2** (apply fix), or
-    **3** (stop).
+    armed (an in-process timer by default, or a Redis ZSET when `REDIS_URL` is set). Tap a
+    button or type **1** (rollback), **2** (apply fix), or **3** (stop).
   </Step>
   <Step title="Authority transfer">
     If the deadline expires with no reply, authority transfers to keepalive. It stops
@@ -66,7 +66,8 @@ Keep this straight — it's the heart of the design.
   <Card title="The relay" icon="tower-broadcast">
     A small hosted FastAPI backend (`api.keepalive.club`) does only what can't be local:
     API-key issuance, Telegram bot send (`sendMessage` + `sendVoice`) + inbound reply
-    webhook, and hosting the voice-note audio page. It never touches GPUs or code.
+    webhook, the diagnosis-LLM proxy, and server-side TTS + hosting of the voice note. It
+    never touches GPUs or code.
   </Card>
 </CardGroup>
 

@@ -10,21 +10,19 @@ environment with `Settings.from_env()`. The table below mirrors the defaults exa
 
 | Env var | Settings field | Default | Description |
 | ------- | -------------- | ------- | ----------- |
-| `KEEPALIVE_API_KEY` | `api_key` | `""` | Relay API key (`ka_live_...`) for Telegram / voice notes. |
+| `KEEPALIVE_API_KEY` | `api_key` | `""` | Relay API key (`ka_live_...`) for Telegram, voice notes, and the diagnosis-LLM proxy. **Required.** |
 | `KEEPALIVE_API_URL` | `api_url` | `https://api.keepalive.club` | Relay base URL. |
-| `KEEPALIVE_TELEGRAM_CHAT_ID` | `telegram_chat_id` | `""` | Destination Telegram chat for messages + voice notes (from the bot's Start reply). |
-| `OPENAI_API_KEY` | `openai_api_key` | `""` | OpenAI key for diagnosis + TTS. |
+| `KEEPALIVE_TELEGRAM_CHAT_ID` | `telegram_chat_id` | `""` | Destination Telegram chat for messages + voice notes (from the bot's Start reply). **Required for escalation.** |
+| `WANDB_API_KEY` | `wandb_api_key` | `""` | W&B metrics + Sandboxes auth. **Required.** |
+| `CURSOR_API_KEY` | `cursor_api_key` | `""` | Cursor **user** API key for cloud agents. **Required for probes.** |
+| `CURSOR_API_URL` | `cursor_api_url` | `https://api.cursor.com` | Cursor API base URL. |
+| `OPENAI_API_KEY` | `openai_api_key` | `""` | **Optional override.** Set it to call OpenAI directly for diagnosis instead of the relay proxy. |
 | `KEEPALIVE_DIAGNOSIS_MODEL` | `diagnosis_model` | `gpt-5.4` | Model for the diagnosis tool-loop. |
-| `KEEPALIVE_PROBE_MODEL` | `probe_model` | `gpt-5.4-mini` | Cheaper model for probe-side reasoning. |
-| `KEEPALIVE_TTS_MODEL` | `tts_model` | `gpt-4o-mini-tts` | TTS model for the voice note. |
-| `KEEPALIVE_TTS_VOICE` | `tts_voice` | `alloy` | TTS voice. |
-| `KEEPALIVE_USE_WANDB_INFERENCE` | `use_wandb_inference` | `false` | Route LLM calls through W&B Inference. |
+| `KEEPALIVE_USE_WANDB_INFERENCE` | `use_wandb_inference` | `false` | Route diagnosis through W&B Inference (authed with `WANDB_API_KEY`) instead of the relay proxy. |
 | `KEEPALIVE_WANDB_INFERENCE_URL` | `wandb_inference_base_url` | `https://api.inference.wandb.ai/v1` | W&B Inference base URL. |
 | `KEEPALIVE_WANDB_INFERENCE_MODEL` | `wandb_inference_model` | `openai/gpt-oss-120b` | W&B Inference model id. |
-| `WANDB_API_KEY` | `wandb_api_key` | `""` | W&B metrics + Sandboxes auth. |
-| `CURSOR_API_KEY` | `cursor_api_key` | `""` | Cursor **user** API key for cloud agents. |
-| `CURSOR_API_URL` | `cursor_api_url` | `https://api.cursor.com` | Cursor API base URL. |
-| `REDIS_URL` | `redis_url` | `redis://localhost:6379/0` | Redis connection (streams, deadlines, memory). |
+| `REDIS_URL` | `redis_url` | `""` | **Optional (power-user / self-host).** Empty by default. Set it to enable Redis streams, ZSET deadlines, SemanticRouter, and SemanticCache. |
+| `AGENT_MEMORY_URL` | `agent_memory_url` | `""` | **Optional.** Agent Memory Server URL. Empty by default — incident memory activates only when set. |
 | `KEEPALIVE_TIMEOUT` | `escalation_timeout_s` | `120.0` | Escalation deadline in seconds. |
 | `KEEPALIVE_REPLY_POLL_INTERVAL` | `reply_poll_interval_s` | `2.0` | How often to poll for a human reply (seconds). |
 | `KEEPALIVE_PROBE_STEPS` | `probe_steps` | `300` | Steps each probe trains before judging. |
@@ -33,6 +31,20 @@ environment with `Settings.from_env()`. The table below mirrors the defaults exa
 | `KEEPALIVE_PROBE_RUN_TIMEOUT` | `probe_run_timeout_s` | `900.0` | Max wall-clock for a single probe run. |
 | `KEEPALIVE_WEAVE_PROJECT` | `weave_project` | `keepalive` | Weave project name for tracing. |
 | `KEEPALIVE_LOSS_KEY` | `loss_key` | `loss` | Metric key treated as loss. |
+
+## Diagnosis LLM provider ladder
+
+The `DiagnosisEngine` picks a provider in this order. Weave tracing works for all of them —
+the OpenAI client is patched client-side regardless of which endpoint it points at.
+
+1. **`OPENAI_API_KEY` set** → calls OpenAI directly (power-user override), model `gpt-5.4`
+   (`KEEPALIVE_DIAGNOSIS_MODEL`).
+2. **else `KEEPALIVE_USE_WANDB_INFERENCE=1`** → W&B Inference
+   (`KEEPALIVE_WANDB_INFERENCE_URL`, model `KEEPALIVE_WANDB_INFERENCE_MODEL`, authed with
+   `WANDB_API_KEY`).
+3. **else (the default)** → the keepalive relay's OpenAI-compatible proxy at
+   `{KEEPALIVE_API_URL}/v1/llm`, authenticated with your `ka_live_` key. Same frontier model
+   (`gpt-5.4`), no OpenAI key of your own required.
 
 ## Loading settings
 
@@ -49,5 +61,6 @@ environment.
 
 <Note>
 Don't hardcode old model ids — `gpt-4o` / `o3` are gone. The diagnosis model defaults to
-`gpt-5.4` and probe-side reasoning to `gpt-5.4-mini`.
+`gpt-5.4`. Voice-note TTS now happens relay-side, so the library no longer has
+`KEEPALIVE_TTS_MODEL` / `KEEPALIVE_TTS_VOICE` settings.
 </Note>

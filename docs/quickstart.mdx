@@ -14,8 +14,10 @@ pip install keepalive
 Sign in at [keepalive.club](https://keepalive.club), issue a key, and copy it — it's
 shown **once**. Keys are prefixed `ka_live_`.
 
-The key authenticates with the keepalive relay (Telegram send + reply webhook + voice-note
-hosting). Everything else — detection, diagnosis, probes — runs locally on your GPU box.
+The key authenticates with the keepalive relay, which now manages the OpenAI bits for you:
+it relays Telegram (send + reply webhook), synthesizes and hosts the voice note, and proxies
+the diagnosis LLM. So you don't bring your own OpenAI key. Detection, diagnosis orchestration,
+and probes all run locally on your GPU box.
 
 ## 3. Connect Telegram
 
@@ -33,20 +35,25 @@ started a chat with it.
 
 ## 4. Set environment variables
 
-keepalive reads its configuration from the environment. The essentials:
+keepalive reads its configuration from the environment. The setup is two keys you already
+have (W&B, Cursor) plus your keepalive key, then press Start on the bot:
 
 ```bash
 export KEEPALIVE_API_KEY="ka_live_..."           # from the dashboard
 export KEEPALIVE_TELEGRAM_CHAT_ID="..."           # from the bot's Start reply
-export OPENAI_API_KEY="sk-..."                    # diagnosis (GPT) + TTS voice note
-export CURSOR_API_KEY="..."                       # Cursor cloud agents write the fixes
 export WANDB_API_KEY="..."                        # W&B metrics + Sandboxes auth
-export REDIS_URL="redis://localhost:6379/0"       # streams, deadlines, memory
+export CURSOR_API_KEY="..."                       # Cursor cloud agents write the fixes
 ```
 
+`KEEPALIVE_API_URL` defaults to `https://api.keepalive.club`, so you only set it when
+self-hosting the relay.
+
 <Note>
-See the [configuration reference](/reference/configuration) for every variable and its
-default, and [Cursor onboarding](/probes#cursor-onboarding) for the one-time Cursor setup.
+No `OPENAI_API_KEY` and no `REDIS_URL` required. The relay handles diagnosis-LLM calls and
+TTS for you. Redis is opt-in (power-user / self-host); without it keepalive uses an
+in-process deadline timer and the core incident flow is unchanged. See the
+[configuration reference](/reference/configuration) for every variable and its default, and
+[Cursor onboarding](/probes#cursor-onboarding) for the one-time Cursor setup.
 </Note>
 
 ## 5. Wrap your loop — door 1 (context manager)

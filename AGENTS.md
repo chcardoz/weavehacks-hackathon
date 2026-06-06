@@ -26,10 +26,14 @@ One-liner: **agents that hold you accountable — and stop waiting when you don'
     demo path: tiny model probes run on the host's own brand-new public-preview product.
   - `LocalExecutor` — git worktree + subprocess on the user's GPU box. Fallback + the
     real-GPU path. Roadmap slide: CoreWeave GPU sandboxes / Modal.
-- **Hosted backend** (FastAPI, api.keepalive.club) does ONLY what can't be local: API key
-  issuance, Telegram relay (sends incident messages with inline action buttons; inbound
-  button-tap / typed 1/2/3 webhook → forwarded to the library), hosting the voice-note mp3
-  that Telegram fetches for the in-chat voice bubble. It never touches GPUs or code.
+- **Hosted backend** (FastAPI, api.keepalive.club) does what can't or shouldn't be local:
+  API key issuance, Telegram relay (sends incident messages with inline action buttons;
+  inbound button-tap / typed 1/2/3 webhook → forwarded to the library), the `/v1/llm`
+  diagnosis proxy (fronts OpenAI with OUR key, authed by the `ka_live_` key, model
+  allow-list + per-key rate limit), and voice-note TTS + hosting (synthesizes the mp3
+  from the library's `voice_script` and sends the in-chat voice bubble). It never touches
+  GPUs or code. Net effect: end users supply only `KEEPALIVE_API_KEY`, chat id,
+  `WANDB_API_KEY`, `CURSOR_API_KEY` — no OpenAI key, no Redis.
 
 The incident flow: detect → pause loop → diagnose (GPT) → Telegram the human + ZSET deadline →
 timeout = authority transfers → Cursor agents push fix branches → executor races probes from
@@ -80,12 +84,17 @@ keepalive/
   never edits code itself. Tools: `get_run_history`, `get_logs`, `get_config`,
   `search_incident_memory` (Redis), `escalate`, `spawn_probes`, `promote`/`kill_probes`,
   optionally the W&B MCP server (`https://mcp.withwandb.com/mcp`, Bearer = W&B API key).
+  Provider ladder in the engine: `OPENAI_API_KEY` set → direct OpenAI (power user);
+  `KEEPALIVE_USE_WANDB_INFERENCE` → W&B Inference; **default → relay `/v1/llm` proxy**
+  (ka_live_ key, still gpt-5.4, Weave autopatch unaffected since the client is local).
 - **Escalation channel: Telegram (Twilio SMS is CUT — A2P 10DLC carrier filtering eats
   link-bearing SMS and registration takes weeks; live calls also CUT — no Pipecat/Daily/
   Deepgram/Cartesia):** one bot via @BotFather, relay holds `TELEGRAM_BOT_TOKEN`. Incident =
   `sendMessage` with inline buttons (⏪ Roll back / 🔧 Apply fix / 🛑 Stop + 🧵 View trace URL
-  button) + `sendVoice` voice bubble (OpenAI `gpt-4o-mini-tts` mp3, ~$0.015/min, fetched by
-  Telegram from the relay's public voice-note URL — `PUBLIC_BASE_URL` must be public).
+  button) + `sendVoice` voice bubble. TTS is RELAY-SIDE: the library sends `voice_script`
+  text in `/v1/notify`; the relay synthesizes (OpenAI `gpt-4o-mini-tts`, ~$0.015/min, our
+  key), hosts the mp3, and Telegram fetches it from the public voice-note URL —
+  `PUBLIC_BASE_URL` must be public.
   Replies: Telegram webhook → FastAPI `/telegram`, validated via `X-Telegram-Bot-Api-Secret-Token`
   (set with `setWebhook`); button `callback_data` carries `{incident_id}:{choice}`; typing
   1/2/3 still works. Users press Start on the bot to get `KEEPALIVE_TELEGRAM_CHAT_ID` (bots
@@ -111,7 +120,9 @@ keepalive/
      (divergence/thermal/dataloader) via embedding KNN, no LLM call
   5. **RedisVL SemanticCache** — cache near-identical probe diagnostic LLM calls
   Image: `redis:8` (query engine in core; redis-stack is legacy). SKIP: LangCache (preview,
-  managed), Vector Sets (redundant here).
+  managed), Vector Sets (redundant here). Library-side Redis is OPT-IN: `REDIS_URL` and
+  `AGENT_MEMORY_URL` default empty (in-process deadline fallback, optional features skip);
+  the demo box sets both so all five uses are live. End users never run Redis.
 - **W&B Inference** (OpenAI-compatible, `https://api.inference.wandb.ai/v1`) as a second
   model provider for sponsor coverage; also auto-traced by Weave.
 - **Backend hosting:** Railway (FastAPI + Postgres + Redis one-click).
