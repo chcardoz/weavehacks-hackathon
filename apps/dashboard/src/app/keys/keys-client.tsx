@@ -235,7 +235,7 @@ export function KeysClient({
       >
         <DialogHeader>
           <DialogTitle>Copy your API key</DialogTitle>
-          <DialogDescription className="text-accent">
+          <DialogDescription className="text-primary">
             You won&apos;t be able to see this key again. Store it somewhere
             safe.
           </DialogDescription>

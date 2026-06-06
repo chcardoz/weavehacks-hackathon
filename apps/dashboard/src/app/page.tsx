@@ -11,7 +11,7 @@ export default async function Home() {
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-8 px-6 py-16">
       <div className="space-y-3">
         <h1 className="text-4xl font-semibold tracking-tight">
-          keep<span className="text-accent">alive</span>
+          keep<span className="text-primary">alive</span>
         </h1>
         <p className="text-lg text-muted-foreground">
           agents that hold you accountable — and stop waiting when you
