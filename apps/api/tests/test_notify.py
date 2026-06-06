@@ -119,9 +119,11 @@ async def test_notify_with_voice_script_synthesizes_and_sends_voice(auth_header)
     voices = telegram.calls_to("/sendVoice")
     assert len(voices) == 1
     voice_url = voices[0]["voice"]
+    # Telegram fetches the file by URL — it must be the direct mp3, not the player page.
     assert voice_url.startswith("http://localhost:8000/a/")
+    assert voice_url.endswith(".mp3")
 
-    note_id = voice_url.rsplit("/a/", 1)[1]
+    note_id = voice_url.rsplit("/a/", 1)[1].removesuffix(".mp3")
     assert await redis.get(f"audio:{note_id}") == MP3
     ttl = await redis.ttl(f"audio:{note_id}")
     assert 0 < ttl <= 1234

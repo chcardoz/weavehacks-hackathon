@@ -63,7 +63,7 @@ async def _synthesize_voice(request: Request, script: str) -> str | None:
 
     note_id = secrets.token_urlsafe(8)
     await get_redis(request).set(f"audio:{note_id}", resp.content, ex=settings.voice_note_ttl_s)
-    return f"{settings.public_base_url}/a/{note_id}"
+    return f"{settings.public_base_url}/a/{note_id}.mp3"
 
 
 @router.post("/v1/notify")
