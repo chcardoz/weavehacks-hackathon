@@ -1,0 +1,52 @@
+---
+title: CLI
+description: The keepalive run supervisor.
+---
+
+## `keepalive run`
+
+**Door 2** — the subprocess supervisor. Use it when you can't or don't want to edit your
+training loop, or when you need to survive **hard** crashes (CUDA OOM, segfault) that kill
+the process. keepalive launches your command as a subprocess, tails its stderr for crash
+signatures, and polls W&B history for soft failures.
+
+```bash
+keepalive run -- python train.py --epochs 10
+```
+
+Everything after `--` is your command, run verbatim.
+
+### How it detects failures
+
+- **stderr tail** — each line is scanned for OOM / exception signatures (`scan_logline`),
+  catching crashes that the in-process hook can't see.
+- **W&B history poll** — `HistoryPoller` calls the public API's
+  `scan_history(min_step=cursor)`, re-fetching the run each poll (the `Run` object caches),
+  catching NaN / divergence / stall.
+
+### Configuration
+
+`keepalive run` is configured through the same environment variables as the library — see
+the [configuration reference](/reference/configuration). The most relevant:
+
+| Variable | Purpose |
+| -------- | ------- |
+| `KEEPALIVE_API_KEY` | Authenticate with the relay (SMS / voice notes). |
+| `KEEPALIVE_PHONE` | Destination for SMS + voice notes. |
+| `KEEPALIVE_TIMEOUT` | Escalation deadline (seconds). Lower for demos. |
+| `KEEPALIVE_LOSS_KEY` | Metric key treated as loss (default `loss`). |
+| `OPENAI_API_KEY` | Diagnosis + TTS. |
+| `CURSOR_API_KEY` | Cursor cloud agents (probe code). |
+| `WANDB_API_KEY` | W&B metrics + Sandboxes. |
+| `REDIS_URL` | Streams, deadlines, memory. |
+
+<Note>
+The in-process context manager ([door 1](/reference/watchdog)) gives zero-lag detection and
+richer control over your loop. Prefer it when you can edit the loop; use `keepalive run`
+when you can't, or when you specifically need to survive process-killing crashes.
+</Note>
+
+### Roadmap
+
+HF Trainer / Lightning callbacks and distributed launches (torchrun / DDP) are on the
+roadmap, not in the current release.

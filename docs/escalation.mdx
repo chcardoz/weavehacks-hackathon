@@ -1,0 +1,61 @@
+---
+title: Escalation
+description: SMS replies, voice notes, deadlines, and Twilio caveats.
+---
+
+When the watchdog detects a failure and finishes diagnosing, it escalates to you. This
+is the **Agency** rung of the ladder: you're notified, and you decide.
+
+## What you receive
+
+1. An **SMS** with a one-line diagnosis and a reply menu.
+2. A short link to an **AI voice note** — a hosted `<audio>` page where a `gpt-4o-mini-tts`
+   voice reads the failure explanation. (We send a link, not an attachment: carriers mangle
+   MMS audio, so the relay hosts the mp3 and serves it with `Content-Type: audio/mpeg`.)
+3. A link to the live **Weave trace** of the incident.
+
+## Reply semantics
+
+Reply with a single digit:
+
+| Reply | Meaning | What keepalive does |
+| ----- | ------- | ------------------- |
+| **1** | Rollback | Raises `KeepaliveRollback(checkpoint)` — roll back to the last good checkpoint. |
+| **2** | Apply fix | Applies the agent's top fix and resumes. |
+| **3** | Stop | Raises `KeepaliveStop` — halt training cleanly. |
+
+See [control exceptions](/reference/watchdog#control-exceptions) for how your code should
+catch these.
+
+## Deadlines and authority transfer
+
+When the incident is escalated, keepalive arms a deadline in a **Redis ZSET**
+(`keepalive:deadlines`) and polls for your reply every couple of seconds. Two outcomes:
+
+- **You reply in time** → keepalive does what you asked (1/2/3).
+- **The deadline expires** → authority transfers. keepalive stops waiting and moves to
+  the autonomous **Assurance** rung: it spawns probes and races fixes. See
+  [probes](/probes).
+
+The timeout is configurable. The default is 120s (`KEEPALIVE_TIMEOUT` /
+`timeout=` on `watchdog()`); for a live demo, drop it to ~20s for pacing.
+
+<Note>
+ZSET polling is the reliable mechanism. Redis keyspace `Ex` expiry notifications are
+best-effort and are used only as demo flair, never as the source of truth.
+</Note>
+
+## Twilio caveats (self-hosters)
+
+The relay sends SMS through Twilio. If you run your own relay, mind these:
+
+- **Put a card on the Twilio account before any real use.** A trial account only texts
+  **verified** numbers and stamps a "Sent from your Twilio trial account" prefix on every
+  message — bad for a demo.
+- Inbound replies arrive at the relay's `/sms` webhook. The relay validates the
+  `X-Twilio-Signature` header, so the public URL Twilio calls **must** match the URL the
+  relay computes the signature against (`PUBLIC_BASE_URL`).
+- For local development, expose the relay with `ngrok http 8000` and point Twilio's
+  messaging webhook + `PUBLIC_BASE_URL` at the ngrok URL.
+
+Full setup in the [Twilio runbook](/self-hosting) and `infra/twilio.md`.

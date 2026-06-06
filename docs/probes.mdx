@@ -1,0 +1,74 @@
+---
+title: Probes
+description: How keepalive writes fixes and races them.
+---
+
+When authority transfers (you didn't reply in time), keepalive enters the **Assurance**
+rung. It writes candidate fixes and races them. A "probe" is one fix hypothesis: a branch
+of code plus a short, checkpoint-resumed training run that tests whether that fix works.
+
+## Cursor cloud agents write code — and only code
+
+Each fix is written by a **Cursor cloud agent** running on Cursor's VMs. These VMs are
+**CPU-only and have no GPUs** — they never run training. They do exactly one thing: write
+a fix and push it to GitHub.
+
+- Each agent branches from the failing run's **exact commit SHA** (captured with
+  `git rev-parse HEAD` at watchdog start; W&B also records it).
+- Each agent pushes a branch named **`cursor/probe-*`**.
+- Commits are signed by the Cursor bot identity.
+
+<Note id="cursor-onboarding">
+### Cursor onboarding (one-time, per user)
+
+1. **Paid Cursor plan** — cloud agents are not on the free tier.
+2. **Install the Cursor GitHub App** (Dashboard → Integrations → Connect GitHub) and grant
+   it the training repo (read-write; private repos are fine).
+3. **Issue a user API key** at `cursor.com/dashboard/api` — a *user* key, **not** a
+   service-account key (service-account keys can't use `envVars`). Set it as
+   `CURSOR_API_KEY`.
+4. keepalive passes `repos[].url` + `startingRef=<failing commit SHA>`.
+
+If the repo isn't connected, the SDK raises `IntegrationNotConnectedError`. The remedy:
+go to **Dashboard → Integrations** and connect the repo.
+</Note>
+
+## Where probes run: pluggable executors
+
+Probe execution is a pluggable `ProbeExecutor` protocol, so the same race logic runs on
+sandboxes, your own box, or future GPU backends. See the
+[executors reference](/reference/executors).
+
+<CardGroup cols={2}>
+  <Card title="SandboxExecutor (default)" icon="box">
+    Runs each probe on **W&B Sandboxes** — Kata microVMs, CPU-only serverless, arbitrary
+    Python/pip/git, authed with your W&B API key. Public preview. This is the demo path:
+    tiny model probes run on W&B's own brand-new product. (Free tier confirmed by W&B
+    staff — ask for a quota bump at the event if you hit limits.)
+  </Card>
+  <Card title="LocalExecutor (fallback)" icon="microchip">
+    Runs each probe in a **git worktree + subprocess** on your own GPU box. The fallback
+    when sandboxes misbehave, and the path for real-GPU probes. CoreWeave GPU sandboxes /
+    Modal are on the roadmap.
+  </Card>
+</CardGroup>
+
+## How the race works
+
+1. keepalive fetches the `cursor/probe-*` branches.
+2. For each branch it launches a probe run that resumes from your **last good checkpoint**
+   and trains for a short number of steps (`probe_steps`, default 300).
+3. Probe runs are **separate W&B runs**, grouped under the parent:
+   `group="watchdog-{run_id}"`, `job_type="probe"`, named after the probe spec id. The
+   probe race shows up live on your W&B dashboard — that *is* the visual, so we don't build
+   our own charts.
+4. The judge picks the winner by **argmin of finite final loss** among finished probes.
+   Losers are killed.
+5. The winner's run continues as the training. The parent run is tagged and a PR is opened
+   for the winning branch.
+
+<Warning>
+Never co-write `_step` to the trainer's own run. Probes are always separate, grouped runs.
+W&B history ingestion lags seconds-to-minutes through the public API, so keepalive
+re-fetches the run object on every poll rather than trusting a cached one.
+</Warning>

@@ -1,0 +1,58 @@
+---
+title: Self-hosting
+description: Run your own relay and dashboard.
+---
+
+The keepalive library runs on your GPU box and needs almost nothing hosted. The two
+hosted pieces are the **relay** (`apps/api`) and the **dashboard** (`apps/dashboard`).
+You can use the managed ones at `api.keepalive.club` / `keepalive.club`, or run your own.
+
+## The relay (`apps/api`)
+
+A small FastAPI backend that does only what can't be local:
+
+- Issue / verify `ka_live_` API keys (sha256 hash lookup).
+- Send SMS via Twilio (`POST /v1/notify`).
+- Receive inbound replies (`POST /sms`, validates `X-Twilio-Signature`).
+- Host the voice-note audio page (`GET /a/{id}`, `GET /a/{id}.mp3`).
+
+It never touches GPUs or code. Deploy it to Railway (FastAPI + Postgres + Redis one-click).
+Start command:
+
+```bash
+uvicorn keepalive_api.main:app --host 0.0.0.0 --port $PORT
+```
+
+Point your library at it with `KEEPALIVE_API_URL=https://your-relay.example.com`.
+
+Full steps: `infra/railway.md`. Twilio setup (and the *put a card on the account* warning):
+`infra/twilio.md`.
+
+## The dashboard (`apps/dashboard`)
+
+A Next.js App Router app for signing in and issuing / revoking API keys, built on Better
+Auth's `api-key` plugin (prefix `ka_live_`), drizzle + Neon Postgres, and shadcn/ui.
+Deploy to Vercel with root directory `apps/dashboard`.
+
+<Warning>
+Run `pnpm db:generate && pnpm db:migrate` against your Neon database **before first use**,
+or the `apikey` table won't exist and key issuance will fail.
+</Warning>
+
+Full steps: `infra/vercel.md`.
+
+## Infra runbooks
+
+All concrete deployment commands live in the repo's `infra/` directory:
+
+| Runbook | What it covers |
+| ------- | -------------- |
+| `infra/README.md` | Index + env var master table. |
+| `infra/railway.md` | Deploy the relay (FastAPI + Postgres + Redis). |
+| `infra/vercel.md` | Deploy the dashboard (Neon + Better Auth). |
+| `infra/mintlify.md` | Deploy these docs. |
+| `infra/twilio.md` | Buy / verify a number, webhook, signature, ngrok. |
+| `infra/cursor-onboarding.md` | The Cursor user setup chain. |
+| `infra/redis.md` + `infra/docker-compose.yml` | Local Redis + Agent Memory Server. |
+| `infra/wandb-sandboxes.md` | Sandbox setup + hour-one smoke test. |
+| `infra/pypi.md` | Trusted publishing for the library. |
