@@ -5,7 +5,7 @@ description: Agents that hold you accountable — and stop waiting when you don'
 
 **keepalive** is a pip-installable watchdog for GPU training runs. It watches your
 W&B metrics, catches failures (NaN loss, divergence, stalls, OOM, crashes), explains
-what went wrong in plain English, texts you, and — if you don't answer in time — takes
+what went wrong in plain English, messages you on Telegram, and — if you don't answer in time — takes
 over: it spawns parallel coding agents that each write a different fix, races those
 fixes as short checkpoint-resumed training runs, and promotes the one with the lowest
 loss. Every decision is traced in [W&B Weave](https://wandb.ai/site/weave).
@@ -23,8 +23,8 @@ you and the system.
     and turns it into a plain-English explanation — no more staring at loss curves.
   </Card>
   <Card title="Agency" icon="bell">
-    Escalation. You get an SMS plus an AI voice note. Reply **1** to roll back,
-    **2** to apply the agent's fix, **3** to stop. You stay in control.
+    Escalation. You get a Telegram message with inline buttons plus an AI voice note.
+    Tap **⏪ Roll back**, **🔧 Apply fix**, or **🛑 Stop** (or type 1/2/3). You stay in control.
   </Card>
   <Card title="Assurance" icon="shield">
     Autonomy. If you don't reply before the deadline, authority transfers. Coding
@@ -36,7 +36,7 @@ you and the system.
 
 Training runs fail at 3am. By the time you wake up you've burned eight hours of GPU
 time on a diverged run. keepalive sits inside your training loop, catches the failure
-in-process (zero lag), diagnoses it with GPT, and texts you. If you're asleep, it
+in-process (zero lag), diagnoses it with GPT, and messages you on Telegram. If you're asleep, it
 doesn't just sit there — it branches your repo at the exact failing commit, hands the
 problem to parallel Cursor cloud agents that each propose a fix, runs each fix as a
 short probe from your last good checkpoint on W&B Sandboxes, and keeps the one that

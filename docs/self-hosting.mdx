@@ -12,8 +12,10 @@ You can use the managed ones at `api.keepalive.club` / `keepalive.club`, or run 
 A small FastAPI backend that does only what can't be local:
 
 - Issue / verify `ka_live_` API keys (sha256 hash lookup).
-- Send SMS via Twilio (`POST /v1/notify`).
-- Receive inbound replies (`POST /sms`, validates `X-Twilio-Signature`).
+- Send Telegram messages via the bot — `sendMessage` (with inline buttons) and `sendVoice`
+  (`POST /v1/notify`, with a `chat_id`).
+- Receive inbound updates — button taps and typed replies (`POST /telegram`, validates the
+  `X-Telegram-Bot-Api-Secret-Token` header against `TELEGRAM_WEBHOOK_SECRET`).
 - Host the voice-note audio page (`GET /a/{id}`, `GET /a/{id}.mp3`).
 
 It never touches GPUs or code. Deploy it to Railway (FastAPI + Postgres + Redis one-click).
@@ -25,8 +27,11 @@ uvicorn keepalive_api.main:app --host 0.0.0.0 --port $PORT
 
 Point your library at it with `KEEPALIVE_API_URL=https://your-relay.example.com`.
 
-Full steps: `infra/railway.md`. Twilio setup (and the *put a card on the account* warning):
-`infra/twilio.md`.
+The relay holds the Telegram bot credentials: one `TELEGRAM_BOT_TOKEN` (from
+[@BotFather](https://t.me/BotFather)) and an optional `TELEGRAM_WEBHOOK_SECRET` used to
+validate inbound updates. Register the webhook to point at your relay's `POST /telegram`.
+
+Full steps: `infra/railway.md`.
 
 ## The dashboard (`apps/dashboard`)
 
@@ -51,8 +56,9 @@ All concrete deployment commands live in the repo's `infra/` directory:
 | `infra/railway.md` | Deploy the relay (FastAPI + Postgres + Redis). |
 | `infra/vercel.md` | Deploy the dashboard (Neon + Better Auth). |
 | `infra/mintlify.md` | Deploy these docs. |
-| `infra/twilio.md` | Buy / verify a number, webhook, signature, ngrok. |
+| `infra/telegram.md` | Create the bot, set the webhook + secret, test the inbound path. |
 | `infra/cursor-onboarding.md` | The Cursor user setup chain. |
-| `infra/redis.md` + `infra/docker-compose.yml` | Local Redis + Agent Memory Server. |
+| `infra/redis.md` | Redis 8 + Agent Memory Server on Railway. |
+| `infra/cloud-testing.md` | End-to-end cloud test plan across all providers. |
 | `infra/wandb-sandboxes.md` | Sandbox setup + hour-one smoke test. |
 | `infra/pypi.md` | Trusted publishing for the library. |

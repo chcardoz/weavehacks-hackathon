@@ -3,7 +3,7 @@
 WeaveHacks 4 project (June 7–8 2026, submissions due Sun 1pm). A pip-installable Python
 watchdog for GPU training runs: it monitors wandb metrics, detects failures (NaN loss,
 divergence, stalls, OOM), explains the failure in plain English, escalates to the human
-(SMS + AI voice note), and if the human doesn't respond before a deadline, spawns parallel
+(Telegram message with action buttons + AI voice note), and if the human doesn't respond before a deadline, spawns parallel
 Cursor cloud agents ("probes") that each write a different fix hypothesis on its own git
 branch — then races those fixes as short checkpoint-resumed training runs on **W&B/CoreWeave
 Sandboxes**. The winning probe's run becomes the training; the rest are killed. Every agent
@@ -27,18 +27,19 @@ One-liner: **agents that hold you accountable — and stop waiting when you don'
   - `LocalExecutor` — git worktree + subprocess on the user's GPU box. Fallback + the
     real-GPU path. Roadmap slide: CoreWeave GPU sandboxes / Modal.
 - **Hosted backend** (FastAPI, api.keepalive.club) does ONLY what can't be local: API key
-  issuance, Twilio SMS relay (send + inbound 1/2/3 reply webhook → forwarded to the library),
-  hosting the voice-note audio page. It never touches GPUs or code.
+  issuance, Telegram relay (sends incident messages with inline action buttons; inbound
+  button-tap / typed 1/2/3 webhook → forwarded to the library), hosting the voice-note mp3
+  that Telegram fetches for the in-chat voice bubble. It never touches GPUs or code.
 
-The incident flow: detect → pause loop → diagnose (GPT) → SMS the human + ZSET deadline →
+The incident flow: detect → pause loop → diagnose (GPT) → Telegram the human + ZSET deadline →
 timeout = authority transfers → Cursor agents push fix branches → executor races probes from
 last good checkpoint (separate wandb runs, `group=watchdog-{parent}, job_type=probe`) →
 promote winner by loss curve (argmin, not vibes) → winner's run continues as the training →
-tag parent run, open PR, store incident in memory, SMS recap + Weave trace link.
+tag parent run, open PR, store incident in memory, Telegram recap + Weave trace link.
 
 ## Library entry points (two doors, one engine)
 
-1. `with keepalive.watchdog(run, escalate=["sms"], timeout=120, checkpoint_dir=...):` —
+1. `with keepalive.watchdog(run, escalate=["telegram"], timeout=120, checkpoint_dir=...):` —
    wraps a hand-rolled PyTorch loop; in-process metric hook (zero lag); catches soft
    failures (NaN/divergence/stall/exception). The demo path.
 2. `keepalive run -- python train.py ...` — CLI supervisor (subprocess + stderr tail);
@@ -60,7 +61,7 @@ keepalive/
 ├── packages/
 │   └── keepalive/          # THE pip-installable library (src/ layout, py.typed)
 ├── apps/
-│   ├── api/                # FastAPI backend: keys, SMS relay, reply webhook, audio page
+│   ├── api/                # FastAPI backend: keys, Telegram relay, reply webhook, audio page
 │   └── dashboard/          # Next.js: sign in, issue/revoke API keys (ka_live_...)
 └── docs/                   # Mintlify (docs.json, NOT mint.json; CLI is `mint`, not `mintlify`)
 ```
@@ -79,18 +80,22 @@ keepalive/
   never edits code itself. Tools: `get_run_history`, `get_logs`, `get_config`,
   `search_incident_memory` (Redis), `escalate`, `spawn_probes`, `promote`/`kill_probes`,
   optionally the W&B MCP server (`https://mcp.withwandb.com/mcp`, Bearer = W&B API key).
-- **Voice note (NOT live calls — Pipecat/Daily/Deepgram/Cartesia are CUT):** OpenAI
-  `gpt-4o-mini-tts` → mp3 (~$0.015/min). Do NOT send as MMS attachment (carriers mangle
-  audio; Twilio recommends ≤600KB and often converts to a link anyway). Send **SMS with a
-  short link** to a hosted `<audio>` page (serve with `Content-Type: audio/mpeg`) + the
-  Weave trace link. Replies: Twilio inbound webhook → FastAPI `/sms` ("1"=rollback,
-  "2"=apply fix, "3"=stop), validate `X-Twilio-Signature`, ngrok for local dev. Twilio trial
-  only texts verified numbers + stamps a prefix — put a card on the account before demo.
+- **Escalation channel: Telegram (Twilio SMS is CUT — A2P 10DLC carrier filtering eats
+  link-bearing SMS and registration takes weeks; live calls also CUT — no Pipecat/Daily/
+  Deepgram/Cartesia):** one bot via @BotFather, relay holds `TELEGRAM_BOT_TOKEN`. Incident =
+  `sendMessage` with inline buttons (⏪ Roll back / 🔧 Apply fix / 🛑 Stop + 🧵 View trace URL
+  button) + `sendVoice` voice bubble (OpenAI `gpt-4o-mini-tts` mp3, ~$0.015/min, fetched by
+  Telegram from the relay's public voice-note URL — `PUBLIC_BASE_URL` must be public).
+  Replies: Telegram webhook → FastAPI `/telegram`, validated via `X-Telegram-Bot-Api-Secret-Token`
+  (set with `setWebhook`); button `callback_data` carries `{incident_id}:{choice}`; typing
+  1/2/3 still works. Users press Start on the bot to get `KEEPALIVE_TELEGRAM_CHAT_ID` (bots
+  can't message first). Free, no trial restrictions, no ngrok — test by curling the webhook
+  with the secret header.
 - **Tracing:** `weave.init("<team>/keepalive")` autopatches the OpenAI client; every watchdog
   fn is `@weave.op` so one incident = one trace tree (detect → diagnose → escalate → probe
   fan-out → promotion). `weave.attributes({...})` for incident/run ids;
   `call.feedback.add(...)` for verdicts; `result, call = op.call(...)` → `call.ui_url` is the
-  shareable demo trace (we SMS it to the user). Weave link is REQUIRED in the submission.
+  shareable demo trace (we send it to the user). Weave link is REQUIRED in the submission.
 - **Run monitoring:** in-process `run.log()` hook (primary, zero lag); wandb public API
   `scan_history(min_step=cursor)` for the CLI-supervisor mode. Probe runs = separate wandb
   runs grouped under the parent (the probe race IS the demo visual — don't build our own
@@ -146,7 +151,8 @@ keepalive/
   silently lost.
 - Redis vectors must stay bytes (`np.float32(...).tobytes()`); `decode_responses=True`
   corrupts them; KNN needs `.dialect(2)`; dim mismatch fails silently.
-- Twilio media_url must be public with correct Content-Type or the send is rejected.
+- Telegram fetches the voice-note mp3 by URL: it must be public with `Content-Type:
+  audio/mpeg` or the voice bubble silently doesn't arrive (the text message still does).
 - PyPI: trusted publishing (OIDC) via GitHub Actions; `id-token: write` is the load-bearing
   permission; register the pending publisher before first release.
 
@@ -156,13 +162,14 @@ keepalive/
 - All code written at the hackathon, public GitHub repo, commit early/often.
 - 3-minute demo, strictly enforced. Demo = tiny training run (nanoGPT/CIFAR) with a
   **fault injector** (`--inject nan@step400`); escalation timeouts configurable to ~20s for
-  demo pacing. Demo beats: live SMS arrives on stage → ignored → sandbox probe race on the
-  wandb dashboard → recovery SMS with Weave trace link.
+  demo pacing. Demo beats: live Telegram message (buttons + voice note) arrives on
+  stage → ignored → sandbox probe race on the wandb dashboard → recovery message with
+  Weave trace link.
 - Judged on: utility, technical demo, creativity, presentation, **multi-agent harness
   sophistication**. Sponsor usage: W&B (Weave + Sandboxes + Inference + optionally MCP),
   OpenAI (GPT-5.4 + TTS), Cursor (SDK as probe code-writer), Redis (5 uses). CopilotKit
-  deliberately skipped. Pipecat/Daily cut (voice note via SMS link instead — no dial-out
-  approval blocker).
+  deliberately skipped. Pipecat/Daily cut (voice note as a Telegram voice bubble instead —
+  no dial-out approval blocker).
 - Pitch language for Olding: the escalation ladder = Awareness / Agency / Assurance.
   Pitch language for CoreWeave judges: probe executor is pluggable; GPU sandboxes are
   CoreWeave's own roadmap — keepalive is built on their primitive.
@@ -173,8 +180,8 @@ keepalive/
    probe race → promote winner. End-to-end on one seeded failure. (LocalExecutor fallback
    if sandboxes misbehave.)
 2. Weave instrumentation throughout + wandb probe-run grouping.
-3. SMS escalation (Twilio via backend relay) + ZSET timeout state machine + TTS voice-note
-   page.
+3. Telegram escalation (via backend relay) + ZSET timeout state machine + TTS voice-note
+   bubble.
 4. Redis Agent Memory Server + SemanticRouter (memory recall in the diagnosis = great
    demo moment: "I've seen this NaN pattern before").
 5. Dashboard key issuance + `keepalive run` CLI supervisor.

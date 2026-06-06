@@ -25,12 +25,15 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
         else:
             app.state.pg_pool = None
 
-        if resolved.twilio_configured:
-            from twilio.rest import Client
+        if resolved.telegram_configured:
+            import httpx
 
-            app.state.twilio = Client(resolved.twilio_account_sid, resolved.twilio_auth_token)
+            app.state.telegram = httpx.AsyncClient(
+                base_url=f"https://api.telegram.org/bot{resolved.telegram_bot_token}",
+                timeout=15,
+            )
         else:
-            app.state.twilio = None
+            app.state.telegram = None
 
         try:
             yield
@@ -38,6 +41,8 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
             await app.state.redis.aclose()
             if app.state.pg_pool is not None:
                 await app.state.pg_pool.close()
+            if app.state.telegram is not None:
+                await app.state.telegram.aclose()
 
     app = FastAPI(title="keepalive-api", lifespan=lifespan)
     app.state.settings = resolved

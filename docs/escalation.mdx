@@ -1,6 +1,6 @@
 ---
 title: Escalation
-description: SMS replies, voice notes, deadlines, and Twilio caveats.
+description: Telegram replies, voice notes, deadlines, and self-hosting caveats.
 ---
 
 When the watchdog detects a failure and finishes diagnosing, it escalates to you. This
@@ -8,24 +8,33 @@ is the **Agency** rung of the ladder: you're notified, and you decide.
 
 ## What you receive
 
-1. An **SMS** with a one-line diagnosis and a reply menu.
-2. A short link to an **AI voice note** — a hosted `<audio>` page where a `gpt-4o-mini-tts`
-   voice reads the failure explanation. (We send a link, not an attachment: carriers mangle
-   MMS audio, so the relay hosts the mp3 and serves it with `Content-Type: audio/mpeg`.)
-3. A link to the live **Weave trace** of the incident.
+A single **Telegram message** from the keepalive bot, containing:
+
+1. A one-line diagnosis of the failure.
+2. **Inline buttons** — ⏪ Roll back, 🔧 Apply fix, 🛑 Stop — plus a **🧵 View trace** URL
+   button whenever a Weave trace link exists.
+3. An **AI voice note** that arrives as an actual voice bubble in the chat. The relay's
+   `sendVoice` call pulls the `gpt-4o-mini-tts` mp3 from the relay's public voice-note URL,
+   so the explanation plays inline — no link to a hosted page.
 
 ## Reply semantics
 
-Reply with a single digit:
+Tap a button **or** type a single digit — both record the same reply:
 
-| Reply | Meaning | What keepalive does |
-| ----- | ------- | ------------------- |
-| **1** | Rollback | Raises `KeepaliveRollback(checkpoint)` — roll back to the last good checkpoint. |
-| **2** | Apply fix | Applies the agent's top fix and resumes. |
-| **3** | Stop | Raises `KeepaliveStop` — halt training cleanly. |
+| Button | Type | Meaning | What keepalive does |
+| ------ | ---- | ------- | ------------------- |
+| **⏪ Roll back** | **1** | Rollback | Raises `KeepaliveRollback(checkpoint)` — roll back to the last good checkpoint. |
+| **🔧 Apply fix** | **2** | Apply fix | Applies the agent's top fix and resumes. |
+| **🛑 Stop** | **3** | Stop | Raises `KeepaliveStop` — halt training cleanly. |
 
 See [control exceptions](/reference/watchdog#control-exceptions) for how your code should
 catch these.
+
+<Note>
+Button taps carry `"{incident_id}:{choice}"` in their `callback_data`, so a tapped reply
+lands in Redis at `reply:{incident_id}` directly. A typed 1/2/3 is resolved through the
+`active:{chat_id}` mapping to the same place.
+</Note>
 
 ## Deadlines and authority transfer
 
@@ -45,17 +54,31 @@ ZSET polling is the reliable mechanism. Redis keyspace `Ex` expiry notifications
 best-effort and are used only as demo flair, never as the source of truth.
 </Note>
 
-## Twilio caveats (self-hosters)
+## Why Telegram
 
-The relay sends SMS through Twilio. If you run your own relay, mind these:
+We moved escalation from SMS to a Telegram bot. The wins:
 
-- **Put a card on the Twilio account before any real use.** A trial account only texts
-  **verified** numbers and stamps a "Sent from your Twilio trial account" prefix on every
-  message — bad for a demo.
-- Inbound replies arrive at the relay's `/sms` webhook. The relay validates the
-  `X-Twilio-Signature` header, so the public URL Twilio calls **must** match the URL the
-  relay computes the signature against (`PUBLIC_BASE_URL`).
-- For local development, expose the relay with `ngrok http 8000` and point Twilio's
-  messaging webhook + `PUBLIC_BASE_URL` at the ngrok URL.
+- **No carrier / A2P filtering** of link-bearing messages — Weave-trace and voice-note
+  links go through untouched.
+- **No phone-number verification** dance. The user presses Start once and the bot replies
+  with their chat id.
+- The voice note **plays inline** as a voice bubble instead of forcing a tap-through to a
+  hosted audio page.
+- **Buttons beat typing codes** — one tap to roll back, apply, or stop.
+- Webhook auth is **one shared-secret header** (`X-Telegram-Bot-Api-Secret-Token`) instead
+  of HMAC signature validation.
 
-Full setup in the [Twilio runbook](/self-hosting) and `infra/twilio.md`.
+## Telegram caveats (self-hosters)
+
+If you run your own relay, mind these:
+
+- **The user must press Start first.** A Telegram bot cannot send the first message to a
+  user who has never started a chat with it. The Start handler replies with the chat id and
+  the `KEEPALIVE_TELEGRAM_CHAT_ID=<id>` line to copy.
+- Inbound updates (button taps and typed replies) arrive at the relay's `/telegram` webhook.
+  The relay validates the `X-Telegram-Bot-Api-Secret-Token` header against
+  `TELEGRAM_WEBHOOK_SECRET`.
+- To test the inbound path, just `curl` the `POST /telegram` webhook with the secret header
+  — no tunnel and no real device needed.
+
+Full setup in the [self-hosting guide](/self-hosting).

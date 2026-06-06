@@ -25,15 +25,17 @@ Auth is your **W&B API key** (`WANDB_API_KEY`) — same key as metrics.
 
 ## Hour-one smoke test
 
-Confirm a sandbox can pip-install torch and run a few hundred steps before you depend on it.
-Run this the moment you sit down:
+Confirm a sandbox can pip-install torch and run a few hundred steps before you depend on
+it. API surface (per current docs — built on the CoreWeave Sandbox library):
+`Sandbox.run()` is a context manager that boots a microVM and auto-stops it;
+`sandbox.exec([...])` returns a Process future — call `.result()` to block and read
+`stdout`/`stderr`. Multiple sandboxes sharing config = a `Session`.
 
 ```python
+import time
 from wandb.sandbox import Sandbox
 
-CODE = r"""
-import subprocess, sys
-subprocess.run([sys.executable, "-m", "pip", "install", "-q", "torch"], check=True)
+TRAIN = r"""
 import torch
 x = torch.randn(64, 64)
 w = torch.randn(64, 64, requires_grad=True)
@@ -46,14 +48,18 @@ for step in range(300):
 print("SMOKE_OK")
 """
 
-with Sandbox() as sb:               # verify exact API at the event
-    result = sb.run(CODE)           # adjust to the real run/exec method name
-    print(result)
+t0 = time.time()
+with Sandbox.run() as sandbox:
+    print(sandbox.exec(["pip", "install", "--quiet", "torch"]).result().stdout)
+    out = sandbox.exec(["python", "-c", TRAIN]).result()
+    print(out.stdout, out.stderr)
+print(f"wall-clock: {time.time() - t0:.0f}s")
 ```
 
-You're looking for `SMOKE_OK` and a sane wall-clock. Note the API surface (`Sandbox(...)`,
-the run/exec method, how stdout comes back) — the public-preview API may differ from this
-sketch; align `SandboxExecutor` to whatever the smoke test confirms.
+You're looking for `SMOKE_OK` and a sane wall-clock (time the torch install — it dominates).
+Also confirm `git clone` works (internet is on by default) and check the file read/write
+API for injecting checkpoints into the VM. CPU/RAM/time limits are undocumented — whatever
+this smoke test survives is your budget; align `SandboxExecutor` to what it confirms.
 
 ## If sandboxes misbehave
 

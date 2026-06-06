@@ -9,9 +9,9 @@ fault injector and a short timeout so the whole incident plays out live.
 ## Setup before you walk on stage
 
 - Tiny model, fast steps — the run should reach the injected fault in seconds.
-- Real card on the Twilio account (trial accounts only text verified numbers and stamp a
-  prefix). See [escalation](/escalation#twilio-caveats-self-hosters).
-- Your phone in hand, ringer on, number verified with the relay.
+- Telegram open on your phone (or a mirrored screen), with the keepalive bot started so
+  it can message you. See [escalation](/escalation#telegram-caveats-self-hosters).
+- `KEEPALIVE_TELEGRAM_CHAT_ID` set to your chat (from the bot's Start reply).
 - W&B dashboard open to the parent run's project (the probe race is the visual).
 - The relay, Redis, and Agent Memory Server all up. See `infra/`.
 
@@ -40,25 +40,27 @@ export KEEPALIVE_TIMEOUT=20
   <Step title="Run starts, fault injects">
     Kick off training. At step 400 the loss goes NaN and the watchdog catches it instantly.
   </Step>
-  <Step title="SMS arrives live on stage">
-    Your phone buzzes: a plain-English diagnosis, a voice-note link, and the reply menu.
-    Read it out. Optionally mention "I've seen this NaN pattern before" — memory recall.
+  <Step title="Telegram message with buttons + AI voice note arrives live on stage">
+    Your phone buzzes: a plain-English diagnosis, inline buttons (⏪ / 🔧 / 🛑 + 🧵 View
+    trace), and an AI voice note that plays inline. Read it out, play the voice bubble.
+    Optionally mention "I've seen this NaN pattern before" — memory recall.
   </Step>
   <Step title="You ignore it">
-    Don't reply. Let the 20s deadline expire. Authority transfers — keepalive stops waiting.
+    Don't tap a button. Let the 20s deadline expire. Authority transfers — keepalive stops
+    waiting.
   </Step>
   <Step title="Probe race on the W&B dashboard">
     Cursor agents push `cursor/probe-*` branches; keepalive races them from the last
     checkpoint on W&B Sandboxes. Switch to the W&B dashboard: multiple grouped probe runs
     appear, loss curves diverging. The winner is the lowest curve.
   </Step>
-  <Step title="Recovery SMS with the Weave trace">
-    keepalive promotes the winner, opens a PR, and texts you a recap with a link to the
-    full Weave trace. Open the trace: one incident, one tree, every agent decision.
+  <Step title="Recovery Telegram message with the Weave trace">
+    keepalive promotes the winner, opens a PR, and sends you a recap message with a link to
+    the full Weave trace. Open the trace: one incident, one tree, every agent decision.
   </Step>
 </Steps>
 
 <Note>
 The Weave link is a hard hackathon requirement and the strongest part of the close — make
-sure the recap SMS lands and the trace opens cleanly.
+sure the recap Telegram message lands and the trace opens cleanly.
 </Note>

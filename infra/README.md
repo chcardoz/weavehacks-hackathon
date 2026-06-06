@@ -8,17 +8,18 @@ standing up.
 | [railway.md](./railway.md) | Relay (`apps/api`): FastAPI + Postgres + Redis |
 | [vercel.md](./vercel.md) | Dashboard (`apps/dashboard`): Next.js + Neon |
 | [mintlify.md](./mintlify.md) | Docs site (`docs/`) |
-| [twilio.md](./twilio.md) | SMS send + inbound reply webhook |
+| [telegram.md](./telegram.md) | Escalation messages + inline-button replies |
 | [cursor-onboarding.md](./cursor-onboarding.md) | Cursor cloud agents (probe code) |
-| [redis.md](./redis.md) + [docker-compose.yml](./docker-compose.yml) | Local Redis + Agent Memory Server |
+| [redis.md](./redis.md) | Redis 8 + Agent Memory Server on Railway |
 | [wandb-sandboxes.md](./wandb-sandboxes.md) | W&B Sandboxes (probe executor) |
 | [pypi.md](./pypi.md) | Publish the `keepalive` library |
+| [cloud-testing.md](./cloud-testing.md) | **End-to-end cloud test plan** — run this top to bottom |
 
 ## Architecture recap (so you put secrets in the right place)
 
 - **The library** runs on the user's GPU box. It needs almost every secret because it does
   the real work (detect, diagnose, probe, promote).
-- **The relay** (`apps/api`, Railway) does SMS + key verification + voice-note hosting only.
+- **The relay** (`apps/api`, Railway) does Telegram + key verification + voice-note hosting only.
 - **The dashboard** (`apps/dashboard`, Vercel) issues keys.
 - **Cursor cloud agents** only write code; they run on Cursor's VMs.
 
@@ -28,15 +29,14 @@ standing up.
 | ------ | :---: | :---: | :---: | :---: |
 | `KEEPALIVE_API_KEY` (`ka_live_...`) | ✅ | — | issued here | — |
 | `KEEPALIVE_API_URL` | ✅ (points at relay) | — | — | — |
-| `KEEPALIVE_PHONE` | ✅ | — | — | — |
+| `KEEPALIVE_TELEGRAM_CHAT_ID` | ✅ | — | — | — |
 | `OPENAI_API_KEY` | ✅ (diagnosis + TTS) | — | — | ✅ (embeddings) |
 | `CURSOR_API_KEY` (user key) | ✅ | — | — | — |
 | `WANDB_API_KEY` | ✅ (metrics + sandboxes) | — | — | — |
 | `REDIS_URL` | ✅ | ✅ (reply / phone map) | — | ✅ |
-| `TWILIO_ACCOUNT_SID` | — | ✅ | — | — |
-| `TWILIO_AUTH_TOKEN` | — | ✅ | — | — |
-| `TWILIO_FROM_NUMBER` | — | ✅ | — | — |
-| `PUBLIC_BASE_URL` | — | ✅ (signature validation) | — | — |
+| `TELEGRAM_BOT_TOKEN` | — | ✅ | — | — |
+| `TELEGRAM_WEBHOOK_SECRET` | — | ✅ | — | — |
+| `PUBLIC_BASE_URL` | — | ✅ (public voice-note URLs) | — | — |
 | `KEEPALIVE_DEV_KEYS` (fallback) | — | ✅ (optional) | — | — |
 | `DATABASE_URL` (Neon) | — | ✅ (key lookup) | ✅ | — |
 | `BETTER_AUTH_SECRET` | — | — | ✅ | — |

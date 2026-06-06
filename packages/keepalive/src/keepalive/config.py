@@ -27,7 +27,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
 class Settings:
     api_key: str = ""
     api_url: str = "https://api.keepalive.club"
-    phone_number: str = ""
+    telegram_chat_id: str = ""
     openai_api_key: str = ""
     diagnosis_model: str = "gpt-5.4"
     probe_model: str = "gpt-5.4-mini"
@@ -54,7 +54,7 @@ class Settings:
         return cls(
             api_key=_env("KEEPALIVE_API_KEY"),
             api_url=_env("KEEPALIVE_API_URL", cls.api_url),
-            phone_number=_env("KEEPALIVE_PHONE"),
+            telegram_chat_id=_env("KEEPALIVE_TELEGRAM_CHAT_ID"),
             openai_api_key=_env("OPENAI_API_KEY"),
             diagnosis_model=_env("KEEPALIVE_DIAGNOSIS_MODEL", cls.diagnosis_model),
             probe_model=_env("KEEPALIVE_PROBE_MODEL", cls.probe_model),

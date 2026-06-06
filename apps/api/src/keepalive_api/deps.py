@@ -8,8 +8,8 @@ from keepalive_api.config import ApiSettings
 
 if TYPE_CHECKING:
     import asyncpg
+    import httpx
     import redis.asyncio as aioredis
-    from twilio.rest import Client as TwilioClient
 
 
 def get_settings(request: Request) -> ApiSettings:
@@ -24,5 +24,5 @@ def get_pg_pool(request: Request) -> asyncpg.Pool | None:
     return request.app.state.pg_pool
 
 
-def get_twilio(request: Request) -> TwilioClient | None:
-    return request.app.state.twilio
+def get_telegram(request: Request) -> httpx.AsyncClient | None:
+    return request.app.state.telegram

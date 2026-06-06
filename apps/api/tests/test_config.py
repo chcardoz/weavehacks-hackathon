@@ -8,9 +8,8 @@ _ENV_VARS = [
     "KEEPALIVE_DEV_KEYS",
     "DATABASE_URL",
     "REDIS_URL",
-    "TWILIO_ACCOUNT_SID",
-    "TWILIO_AUTH_TOKEN",
-    "TWILIO_FROM_NUMBER",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_WEBHOOK_SECRET",
     "PUBLIC_BASE_URL",
     "VOICE_NOTE_TTL_S",
 ]
@@ -26,13 +25,12 @@ def test_defaults_when_unset():
     s = ApiSettings.from_env()
     assert s.database_url == ""
     assert s.redis_url == "redis://localhost:6379/0"
-    assert s.twilio_account_sid == ""
-    assert s.twilio_auth_token == ""
-    assert s.twilio_from_number == ""
+    assert s.telegram_bot_token == ""
+    assert s.telegram_webhook_secret == ""
     assert s.public_base_url == "http://localhost:8000"
     assert s.dev_keys == frozenset()
     assert s.voice_note_ttl_s == 86400
-    assert s.twilio_configured is False
+    assert s.telegram_configured is False
 
 
 def test_dev_keys_comma_list_and_strip(monkeypatch):
@@ -65,13 +63,11 @@ def test_env_overrides_applied(monkeypatch):
     assert s.voice_note_ttl_s == 60
 
 
-def test_twilio_configured_requires_all_three(monkeypatch):
-    monkeypatch.setenv("TWILIO_ACCOUNT_SID", "AC1")
-    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "tok")
-    assert ApiSettings.from_env().twilio_configured is False  # missing from_number
+def test_telegram_configured_requires_token(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "s3cret")
+    assert ApiSettings.from_env().telegram_configured is False  # secret alone is not enough
 
-    monkeypatch.setenv("TWILIO_FROM_NUMBER", "+15550001111")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw")
     s = ApiSettings.from_env()
-    assert s.twilio_configured is True
-    assert s.twilio_account_sid == "AC1"
-    assert s.twilio_from_number == "+15550001111"
+    assert s.telegram_configured is True
+    assert s.telegram_webhook_secret == "s3cret"

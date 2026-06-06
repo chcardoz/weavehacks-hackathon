@@ -25,8 +25,8 @@ class VoiceNoteBuilder:
         return (
             f"Hey, this is keepalive. Your training run hit a {failure.kind} at step {failure.step}. "
             f"{diagnosis}. If I don't hear from you in {seconds} seconds, I'm sending in the probes "
-            f"to test fixes automatically. Reply one to roll back, two to apply a fix, "
-            f"or three to stop the run."
+            f"to test fixes automatically. Tap a button, or reply one to roll back, "
+            f"two to apply a fix, or three to stop the run."
         )
 
     def synthesize(self, text: str) -> bytes:

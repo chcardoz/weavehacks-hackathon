@@ -14,13 +14,12 @@ DEV_KEY = "ka_live_test"
 
 
 def make_settings(**overrides: object) -> ApiSettings:
-    """Dev settings: dev key, no twilio creds, no database, fakeable redis url."""
+    """Dev settings: dev key, no telegram creds, no database, fakeable redis url."""
     base: dict[str, object] = {
         "dev_keys": frozenset({DEV_KEY}),
         "database_url": "",
-        "twilio_account_sid": "",
-        "twilio_auth_token": "",
-        "twilio_from_number": "",
+        "telegram_bot_token": "",
+        "telegram_webhook_secret": "",
         "public_base_url": "http://localhost:8000",
         # redis_url is never connected to (we swap app.state.redis for a fake), but
         # from_url() is called during lifespan startup; a redis:// url constructs fine offline.
@@ -35,7 +34,7 @@ async def build_client(
     settings: ApiSettings | None = None,
     *,
     fake_redis: fakeredis.aioredis.FakeRedis | None = None,
-    twilio: object | None = None,
+    telegram: object | None = None,
 ) -> AsyncIterator[tuple[httpx.AsyncClient, object]]:
     """Create the app, run its lifespan, then swap in fakes on app.state.
 
@@ -50,16 +49,18 @@ async def build_client(
         # Replace the real (unconnected) redis client created during startup with a fake.
         # Close the real one so lifespan shutdown doesn't double-manage it.
         real_redis = app.state.redis
+        real_telegram = app.state.telegram
         app.state.redis = redis
-        if twilio is not None:
-            app.state.twilio = twilio
+        if telegram is not None:
+            app.state.telegram = telegram
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
             try:
                 yield client, app
             finally:
-                # restore so lifespan shutdown closes the original object it created
+                # restore so lifespan shutdown closes the original objects it created
                 app.state.redis = real_redis
+                app.state.telegram = real_telegram
 
 
 @pytest.fixture
@@ -74,7 +75,7 @@ def fake_redis() -> fakeredis.aioredis.FakeRedis:
 
 @pytest.fixture
 async def client_app(fake_redis: fakeredis.aioredis.FakeRedis):
-    """Default client with dev settings (twilio None) and a shared fake redis.
+    """Default client with dev settings (telegram None) and a shared fake redis.
 
     Yields (client, app, redis).
     """
@@ -82,15 +83,20 @@ async def client_app(fake_redis: fakeredis.aioredis.FakeRedis):
         yield client, app, fake_redis
 
 
-class FakeMessages:
+class FakeTelegram:
+    """Stands in for the httpx.AsyncClient on app.state.telegram."""
+
     def __init__(self) -> None:
-        self.calls: list[dict[str, object]] = []
+        self.calls: list[tuple[str, dict[str, object]]] = []
 
-    def create(self, **kwargs: object) -> object:
-        self.calls.append(kwargs)
-        return type("Msg", (), {"sid": "SM_fake"})()
+    async def post(self, path: str, json: dict[str, object] | None = None) -> httpx.Response:
+        payload = json or {}
+        self.calls.append((path, payload))
+        return httpx.Response(
+            200,
+            json={"ok": True, "result": {}},
+            request=httpx.Request("POST", f"https://api.telegram.org/botTEST{path}"),
+        )
 
-
-class FakeTwilio:
-    def __init__(self) -> None:
-        self.messages = FakeMessages()
+    def calls_to(self, path: str) -> list[dict[str, object]]:
+        return [payload for p, payload in self.calls if p == path]

@@ -168,7 +168,7 @@ class Watchdog:
         cursor: Any = None,
         checkpoint_dir: str = "checkpoints",
         timeout: float | None = None,
-        escalate: tuple[str, ...] = ("sms",),
+        escalate: tuple[str, ...] = ("telegram",),
         loss_key: str | None = None,
         entrypoint: list[str] | None = None,
     ) -> None:
@@ -403,7 +403,12 @@ class Watchdog:
 
         incident.trace_url = _safely(current_trace_url, "trace_url")
 
-        escalate_enabled = "sms" in self._escalate and bool(self.settings.api_key) and bool(self.settings.phone_number)
+        # "sms" accepted as a legacy alias for the remote escalation channel.
+        escalate_enabled = (
+            bool({"telegram", "sms"} & set(self._escalate))
+            and bool(self.settings.api_key)
+            and bool(self.settings.telegram_chat_id)
+        )
         reply: HumanReply | None = None
         if escalate_enabled:
             voice = VoiceNoteBuilder(self.settings)
@@ -536,7 +541,7 @@ class Watchdog:
 def watchdog(
     run: Any = None,
     *,
-    escalate: tuple[str, ...] = ("sms",),
+    escalate: tuple[str, ...] = ("telegram",),
     timeout: float | None = None,
     checkpoint_dir: str = "checkpoints",
     loss_key: str | None = None,

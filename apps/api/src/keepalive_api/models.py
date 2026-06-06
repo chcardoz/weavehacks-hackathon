@@ -11,7 +11,7 @@ class NotifyRequest(BaseModel):
     message: str
     voice_note_url: str | None = None
     trace_url: str | None = None
-    to_phone: str
+    chat_id: str
 
 
 class ReplyResponse(BaseModel):

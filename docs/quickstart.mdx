@@ -14,20 +14,34 @@ pip install keepalive
 Sign in at [keepalive.club](https://keepalive.club), issue a key, and copy it — it's
 shown **once**. Keys are prefixed `ka_live_`.
 
-The key authenticates with the keepalive relay (SMS send + reply webhook + voice-note
+The key authenticates with the keepalive relay (Telegram send + reply webhook + voice-note
 hosting). Everything else — detection, diagnosis, probes — runs locally on your GPU box.
 
-## 3. Set environment variables
+## 3. Connect Telegram
+
+Open the keepalive bot in Telegram — [t.me/keepalive_bot](https://t.me/keepalive_bot) — and
+press **Start**. The bot replies with your chat id and the exact env line to copy:
+
+```
+KEEPALIVE_TELEGRAM_CHAT_ID=<your-chat-id>
+```
+
+<Note>
+You **must** press Start at least once. A Telegram bot cannot message a user who has never
+started a chat with it.
+</Note>
+
+## 4. Set environment variables
 
 keepalive reads its configuration from the environment. The essentials:
 
 ```bash
-export KEEPALIVE_API_KEY="ka_live_..."     # from the dashboard
-export KEEPALIVE_PHONE="+15551234567"       # where SMS + voice notes go
-export OPENAI_API_KEY="sk-..."              # diagnosis (GPT) + TTS voice note
-export CURSOR_API_KEY="..."                 # Cursor cloud agents write the fixes
-export WANDB_API_KEY="..."                  # W&B metrics + Sandboxes auth
-export REDIS_URL="redis://localhost:6379/0" # streams, deadlines, memory
+export KEEPALIVE_API_KEY="ka_live_..."           # from the dashboard
+export KEEPALIVE_TELEGRAM_CHAT_ID="..."           # from the bot's Start reply
+export OPENAI_API_KEY="sk-..."                    # diagnosis (GPT) + TTS voice note
+export CURSOR_API_KEY="..."                       # Cursor cloud agents write the fixes
+export WANDB_API_KEY="..."                        # W&B metrics + Sandboxes auth
+export REDIS_URL="redis://localhost:6379/0"       # streams, deadlines, memory
 ```
 
 <Note>
@@ -35,7 +49,7 @@ See the [configuration reference](/reference/configuration) for every variable a
 default, and [Cursor onboarding](/probes#cursor-onboarding) for the one-time Cursor setup.
 </Note>
 
-## 4. Wrap your loop — door 1 (context manager)
+## 5. Wrap your loop — door 1 (context manager)
 
 The primary path. Wrap your hand-rolled PyTorch loop. keepalive installs an in-process
 hook on `run.log()`, so failures are caught with zero polling lag.
@@ -46,7 +60,7 @@ import keepalive
 
 run = wandb.init(project="my-model")
 
-with keepalive.watchdog(run, escalate=["sms"], timeout=120, checkpoint_dir="ckpts/"):
+with keepalive.watchdog(run, escalate=["telegram"], timeout=120, checkpoint_dir="ckpts/"):
     for step in range(num_steps):
         loss = train_step()
         run.log({"loss": loss}, step=step)
@@ -58,7 +72,7 @@ When a soft failure (NaN, divergence, stall, exception) is detected, the watchdo
 diagnoses, escalates, and — depending on your reply or the timeout — raises a control
 exception you can catch. See the [watchdog reference](/reference/watchdog#control-exceptions).
 
-## 5. Or supervise a subprocess — door 2 (CLI)
+## 6. Or supervise a subprocess — door 2 (CLI)
 
 When you can't (or don't want to) edit the loop, run your script under the supervisor.
 This survives **hard** crashes (CUDA OOM, segfault) that kill the process, by tailing

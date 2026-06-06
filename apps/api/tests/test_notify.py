@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import fakeredis.aioredis
 
-from .conftest import FakeTwilio, build_client, make_settings
+from .conftest import FakeTelegram, build_client, make_settings
 
 
 async def test_notify_dev_mode_returns_sent_false(client_app, auth_header):
     client, _app, _redis = client_app
     resp = await client.post(
         "/v1/notify",
-        json={"incident_id": "i1", "message": "loss is NaN", "to_phone": "+15551230000"},
+        json={"incident_id": "i1", "message": "loss is NaN", "chat_id": "123456789"},
         headers=auth_header,
     )
     assert resp.status_code == 200
@@ -24,14 +24,14 @@ async def test_notify_incident_sets_active_key(client_app, auth_header):
             "incident_id": "inc-42",
             "kind": "incident",
             "message": "diverging",
-            "to_phone": "+15551230000",
+            "chat_id": "123456789",
         },
         headers=auth_header,
     )
     assert resp.status_code == 200
-    val = await redis.get("active:+15551230000")
+    val = await redis.get("active:123456789")
     assert val == b"inc-42"
-    ttl = await redis.ttl("active:+15551230000")
+    ttl = await redis.ttl("active:123456789")
     assert ttl > 0
 
 
@@ -43,63 +43,100 @@ async def test_notify_recap_does_not_set_active_key(client_app, auth_header):
             "incident_id": "inc-99",
             "kind": "recap",
             "message": "all good now",
-            "to_phone": "+15551230000",
+            "chat_id": "123456789",
         },
         headers=auth_header,
     )
     assert resp.status_code == 200
-    val = await redis.get("active:+15551230000")
+    val = await redis.get("active:123456789")
     assert val is None
 
 
-async def test_notify_with_twilio_calls_create_with_expected_kwargs(auth_header):
-    settings = make_settings(
-        twilio_account_sid="AC123",
-        twilio_auth_token="tok",
-        twilio_from_number="+15550009999",
-    )
+async def test_notify_incident_sends_message_with_action_buttons(auth_header):
+    settings = make_settings(telegram_bot_token="123:abc")
     redis = fakeredis.aioredis.FakeRedis(decode_responses=False)
-    fake = FakeTwilio()
-    async with build_client(settings, fake_redis=redis, twilio=fake) as (client, _app):
+    fake = FakeTelegram()
+    async with build_client(settings, fake_redis=redis, telegram=fake) as (client, _app):
         resp = await client.post(
             "/v1/notify",
             json={
                 "incident_id": "inc-1",
                 "message": "loss spiked",
-                "voice_note_url": "http://localhost:8000/a/abc",
                 "trace_url": "http://weave/trace/xyz",
-                "to_phone": "+15551112222",
+                "chat_id": "123456789",
             },
             headers=auth_header,
         )
     assert resp.status_code == 200
     assert resp.json() == {"sent": True}
-    assert len(fake.messages.calls) == 1
-    call = fake.messages.calls[0]
-    assert call["to"] == "+15551112222"
-    assert call["from_"] == "+15550009999"
-    body = call["body"]
-    assert "loss spiked" in body
-    assert "http://localhost:8000/a/abc" in body
-    assert "http://weave/trace/xyz" in body
+
+    sends = fake.calls_to("/sendMessage")
+    assert len(sends) == 1
+    payload = sends[0]
+    assert payload["chat_id"] == "123456789"
+    assert payload["text"] == "loss spiked"
+    rows = payload["reply_markup"]["inline_keyboard"]
+    actions = rows[0]
+    assert [b["callback_data"] for b in actions] == ["inc-1:1", "inc-1:2", "inc-1:3"]
+    assert rows[1][0]["url"] == "http://weave/trace/xyz"
 
 
-async def test_notify_body_omits_links_when_absent(auth_header):
-    settings = make_settings(
-        twilio_account_sid="AC123",
-        twilio_auth_token="tok",
-        twilio_from_number="+15550009999",
-    )
+async def test_notify_with_voice_note_sends_voice(auth_header):
+    settings = make_settings(telegram_bot_token="123:abc")
     redis = fakeredis.aioredis.FakeRedis(decode_responses=False)
-    fake = FakeTwilio()
-    async with build_client(settings, fake_redis=redis, twilio=fake) as (client, _app):
+    fake = FakeTelegram()
+    async with build_client(settings, fake_redis=redis, telegram=fake) as (client, _app):
         resp = await client.post(
             "/v1/notify",
-            json={"incident_id": "inc-1", "message": "just text", "to_phone": "+1"},
+            json={
+                "incident_id": "inc-1",
+                "message": "loss spiked",
+                "voice_note_url": "https://api.keepalive.club/a/abc.mp3",
+                "chat_id": "123456789",
+            },
             headers=auth_header,
         )
     assert resp.status_code == 200
-    body = fake.messages.calls[0]["body"]
-    assert body == "just text"
-    assert "voice note" not in body
-    assert "trace" not in body
+    voices = fake.calls_to("/sendVoice")
+    assert len(voices) == 1
+    assert voices[0] == {"chat_id": "123456789", "voice": "https://api.keepalive.club/a/abc.mp3"}
+
+
+async def test_notify_recap_has_no_action_buttons(auth_header):
+    settings = make_settings(telegram_bot_token="123:abc")
+    redis = fakeredis.aioredis.FakeRedis(decode_responses=False)
+    fake = FakeTelegram()
+    async with build_client(settings, fake_redis=redis, telegram=fake) as (client, _app):
+        resp = await client.post(
+            "/v1/notify",
+            json={
+                "incident_id": "inc-1",
+                "kind": "recap",
+                "message": "winner promoted",
+                "trace_url": "http://weave/trace/xyz",
+                "chat_id": "123456789",
+            },
+            headers=auth_header,
+        )
+    assert resp.status_code == 200
+    payload = fake.calls_to("/sendMessage")[0]
+    rows = payload["reply_markup"]["inline_keyboard"]
+    assert len(rows) == 1  # just the trace link, no 1/2/3 buttons
+    assert rows[0][0]["url"] == "http://weave/trace/xyz"
+
+
+async def test_notify_plain_recap_omits_keyboard_and_voice(auth_header):
+    settings = make_settings(telegram_bot_token="123:abc")
+    redis = fakeredis.aioredis.FakeRedis(decode_responses=False)
+    fake = FakeTelegram()
+    async with build_client(settings, fake_redis=redis, telegram=fake) as (client, _app):
+        resp = await client.post(
+            "/v1/notify",
+            json={"incident_id": "inc-1", "kind": "recap", "message": "just text", "chat_id": "1"},
+            headers=auth_header,
+        )
+    assert resp.status_code == 200
+    payload = fake.calls_to("/sendMessage")[0]
+    assert payload["text"] == "just text"
+    assert "reply_markup" not in payload
+    assert fake.calls_to("/sendVoice") == []

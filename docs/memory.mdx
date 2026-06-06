@@ -53,8 +53,8 @@ need `.dialect(2)`, and a dimension mismatch fails silently.
 
 Skipped deliberately: LangCache (managed preview) and Vector Sets (redundant here).
 
-## Running it locally
+## Running it
 
-See `infra/redis.md` and `infra/docker-compose.yml` for a local stack: `redis:8` plus the
-Agent Memory Server container, with `REDIS_URL` wired through and `OPENAI_API_KEY` provided
-for embeddings.
+See `infra/redis.md` for the cloud stack on Railway: a pinned `redis:8` service plus the
+Agent Memory Server as its own service, with `REDIS_URL` wired through and
+`OPENAI_API_KEY` provided for embeddings.

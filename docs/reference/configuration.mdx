@@ -10,9 +10,9 @@ environment with `Settings.from_env()`. The table below mirrors the defaults exa
 
 | Env var | Settings field | Default | Description |
 | ------- | -------------- | ------- | ----------- |
-| `KEEPALIVE_API_KEY` | `api_key` | `""` | Relay API key (`ka_live_...`) for SMS / voice notes. |
+| `KEEPALIVE_API_KEY` | `api_key` | `""` | Relay API key (`ka_live_...`) for Telegram / voice notes. |
 | `KEEPALIVE_API_URL` | `api_url` | `https://api.keepalive.club` | Relay base URL. |
-| `KEEPALIVE_PHONE` | `phone_number` | `""` | Destination phone for SMS + voice notes. |
+| `KEEPALIVE_TELEGRAM_CHAT_ID` | `telegram_chat_id` | `""` | Destination Telegram chat for messages + voice notes (from the bot's Start reply). |
 | `OPENAI_API_KEY` | `openai_api_key` | `""` | OpenAI key for diagnosis + TTS. |
 | `KEEPALIVE_DIAGNOSIS_MODEL` | `diagnosis_model` | `gpt-5.4` | Model for the diagnosis tool-loop. |
 | `KEEPALIVE_PROBE_MODEL` | `probe_model` | `gpt-5.4-mini` | Cheaper model for probe-side reasoning. |

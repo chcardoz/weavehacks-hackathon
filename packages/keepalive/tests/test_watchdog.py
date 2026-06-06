@@ -166,7 +166,7 @@ def _build(
 
     s = settings or Settings(
         api_key="k",
-        phone_number="+1",
+        telegram_chat_id="1",
         reply_poll_interval_s=0,
         probe_steps=5,
         max_probes=3,
@@ -262,7 +262,7 @@ def test_empty_hypotheses_stops_without_cursor(tmp_path: Path) -> None:
 
 
 def test_no_escalation_configured_skips_notify(tmp_path: Path) -> None:
-    # settings without api_key/phone -> escalate disabled -> straight autonomous
+    # settings without api_key/chat id -> escalate disabled -> straight autonomous
     s = Settings(reply_poll_interval_s=0, probe_steps=5, max_probes=3, escalation_timeout_s=1)
     wd, deps = _build(tmp_path, settings=s, reply=HumanReply.STOP)
     # reply is scripted STOP but await_human is never called since escalation disabled

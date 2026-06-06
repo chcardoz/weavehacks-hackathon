@@ -21,7 +21,7 @@ def make_settings(**over: Any) -> Settings:
     base = {
         "api_key": "ka_live_test",
         "api_url": "https://api.test",
-        "phone_number": "+15551234567",
+        "telegram_chat_id": "123456789",
     }
     base.update(over)
     return Settings(**base)  # type: ignore[arg-type]
@@ -73,7 +73,7 @@ def test_notify_incident_posts_payload() -> None:
     body = json.loads(req.content)
     assert body["incident_id"] == "inc_1"
     assert body["kind"] == "incident"
-    assert body["to_phone"] == "+15551234567"
+    assert body["chat_id"] == "123456789"
     assert body["voice_note_url"] == "https://audio/x.mp3"
     assert body["trace_url"] == "https://weave.example/trace/1"
     msg = body["message"]

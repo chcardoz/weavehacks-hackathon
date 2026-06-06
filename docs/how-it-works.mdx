@@ -22,8 +22,10 @@ trace tree. Here is the full path from detection to recovery:
     hypotheses.
   </Step>
   <Step title="Escalate">
-    You get an SMS plus a link to an AI voice note explaining the failure, and a deadline
-    is armed in a Redis ZSET. Reply **1** (rollback), **2** (apply fix), or **3** (stop).
+    You get a Telegram message with inline buttons (**⏪ Roll back**, **🔧 Apply fix**,
+    **🛑 Stop**) plus an AI voice note that plays inline in the chat, and a deadline is
+    armed in a Redis ZSET. Tap a button or type **1** (rollback), **2** (apply fix), or
+    **3** (stop).
   </Step>
   <Step title="Authority transfer">
     If the deadline expires with no reply, authority transfers to keepalive. It stops
@@ -43,7 +45,7 @@ trace tree. Here is the full path from detection to recovery:
   </Step>
   <Step title="Recap">
     The parent run is tagged, a PR is opened, the incident is stored in memory, and you
-    get an SMS recap with a link to the full Weave trace.
+    get a Telegram recap with a link to the full Weave trace.
   </Step>
 </Steps>
 
@@ -63,8 +65,8 @@ Keep this straight — it's the heart of the design.
   </Card>
   <Card title="The relay" icon="tower-broadcast">
     A small hosted FastAPI backend (`api.keepalive.club`) does only what can't be local:
-    API-key issuance, Twilio SMS send + inbound reply webhook, and hosting the voice-note
-    audio page. It never touches GPUs or code.
+    API-key issuance, Telegram bot send (`sendMessage` + `sendVoice`) + inbound reply
+    webhook, and hosting the voice-note audio page. It never touches GPUs or code.
   </Card>
 </CardGroup>
 
@@ -84,7 +86,7 @@ flowchart TD
     A[Training loop on GPU box] -->|run.log / stderr| B{Detect failure}
     B -->|NaN / divergence / stall / OOM| C[Pause loop]
     C --> D[Diagnose with GPT tool-loop]
-    D --> E[Escalate: SMS + voice note]
+    D --> E[Escalate: Telegram message + buttons + voice note]
     E --> F{Human replies before deadline?}
     F -->|1 rollback| G[Rollback to checkpoint]
     F -->|2 apply fix| H[Apply chosen fix]
@@ -94,8 +96,8 @@ flowchart TD
     K --> L[Race probes from last checkpoint on W&B Sandboxes]
     L --> M[Promote winner by argmin loss]
     M --> N[Winner's run continues as training]
-    N --> O[Tag run, open PR, store memory, SMS recap + Weave link]
+    N --> O[Tag run, open PR, store memory, Telegram recap + Weave link]
 ```
 
 Every node above is a `@weave.op`, so one incident renders as one trace tree you can
-share. The Weave link is included in your recap SMS.
+share. The Weave link is included in your recap Telegram message.

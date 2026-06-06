@@ -13,7 +13,7 @@ def _short_message(incident: Incident) -> str:
     parts = [f"keepalive: {failure.kind} at step {failure.step}"]
     if incident.diagnosis is not None and incident.diagnosis.summary:
         parts.append(incident.diagnosis.summary)
-    parts.append("reply 1=rollback 2=apply fix 3=stop")
+    parts.append("tap a button or reply 1=rollback 2=apply fix 3=stop")
     if incident.deadline_ts is not None:
         remaining = max(0, int(incident.deadline_ts - incident.created_at))
         parts.append(f"deadline {remaining}s")
@@ -36,7 +36,7 @@ class EscalationClient:
             "message": _short_message(incident),
             "voice_note_url": voice_note_url,
             "trace_url": incident.trace_url,
-            "to_phone": self.settings.phone_number,
+            "chat_id": self.settings.telegram_chat_id,
         }
         resp = self.http.post("/v1/notify", json=payload)
         resp.raise_for_status()
@@ -63,7 +63,7 @@ class EscalationClient:
             "message": message,
             "voice_note_url": None,
             "trace_url": incident.trace_url,
-            "to_phone": self.settings.phone_number,
+            "chat_id": self.settings.telegram_chat_id,
         }
         resp = self.http.post("/v1/notify", json=payload)
         resp.raise_for_status()
