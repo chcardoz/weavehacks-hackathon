@@ -35,6 +35,7 @@ async def build_client(
     *,
     fake_redis: fakeredis.aioredis.FakeRedis | None = None,
     telegram: object | None = None,
+    openai: object | None = None,
 ) -> AsyncIterator[tuple[httpx.AsyncClient, object]]:
     """Create the app, run its lifespan, then swap in fakes on app.state.
 
@@ -50,9 +51,12 @@ async def build_client(
         # Close the real one so lifespan shutdown doesn't double-manage it.
         real_redis = app.state.redis
         real_telegram = app.state.telegram
+        real_openai = app.state.openai
         app.state.redis = redis
         if telegram is not None:
             app.state.telegram = telegram
+        if openai is not None:
+            app.state.openai = openai
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
             try:
@@ -61,6 +65,7 @@ async def build_client(
                 # restore so lifespan shutdown closes the original objects it created
                 app.state.redis = real_redis
                 app.state.telegram = real_telegram
+                app.state.openai = real_openai
 
 
 @pytest.fixture
@@ -96,6 +101,28 @@ class FakeTelegram:
             200,
             json={"ok": True, "result": {}},
             request=httpx.Request("POST", f"https://api.telegram.org/botTEST{path}"),
+        )
+
+    def calls_to(self, path: str) -> list[dict[str, object]]:
+        return [payload for p, payload in self.calls if p == path]
+
+
+class FakeOpenAI:
+    """Stands in for the httpx.AsyncClient on app.state.openai."""
+
+    def __init__(self, responses: dict[str, httpx.Response] | None = None) -> None:
+        self.calls: list[tuple[str, dict[str, object]]] = []
+        self.responses = responses or {}
+
+    async def post(self, path: str, json: dict[str, object] | None = None) -> httpx.Response:
+        payload = json or {}
+        self.calls.append((path, payload))
+        if path in self.responses:
+            return self.responses[path]
+        return httpx.Response(
+            200,
+            json={"id": "chatcmpl-test", "choices": [{"message": {"role": "assistant", "content": "ok"}}]},
+            request=httpx.Request("POST", f"https://api.openai.com/v1{path}"),
         )
 
     def calls_to(self, path: str) -> list[dict[str, object]]:

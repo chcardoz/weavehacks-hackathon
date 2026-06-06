@@ -26,3 +26,7 @@ def get_pg_pool(request: Request) -> asyncpg.Pool | None:
 
 def get_telegram(request: Request) -> httpx.AsyncClient | None:
     return request.app.state.telegram
+
+
+def get_openai(request: Request) -> httpx.AsyncClient | None:
+    return request.app.state.openai

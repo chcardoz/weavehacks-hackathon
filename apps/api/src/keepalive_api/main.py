@@ -35,6 +35,17 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
         else:
             app.state.telegram = None
 
+        if resolved.openai_configured:
+            import httpx
+
+            app.state.openai = httpx.AsyncClient(
+                base_url="https://api.openai.com/v1",
+                headers={"Authorization": f"Bearer {resolved.openai_api_key}"},
+                timeout=120,
+            )
+        else:
+            app.state.openai = None
+
         try:
             yield
         finally:
@@ -43,6 +54,8 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
                 await app.state.pg_pool.close()
             if app.state.telegram is not None:
                 await app.state.telegram.aclose()
+            if app.state.openai is not None:
+                await app.state.openai.aclose()
 
     app = FastAPI(title="keepalive-api", lifespan=lifespan)
     app.state.settings = resolved
