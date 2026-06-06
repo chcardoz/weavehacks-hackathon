@@ -202,6 +202,8 @@ class Watchdog:
     def _redis_client(self) -> Any:
         if self._redis is not None:
             return self._redis
+        if not self.settings.redis_url:
+            return None
         try:
             import redis  # type: ignore[import-not-found]
 
@@ -264,6 +266,8 @@ class Watchdog:
     @property
     def router(self) -> Any:
         if self._router is None:
+            if not self.settings.redis_url:
+                return None
             try:
                 from .memory.router import SignalRouter
 
@@ -274,6 +278,8 @@ class Watchdog:
 
     @property
     def cache(self) -> Any:
+        if not self.settings.redis_url:
+            return None
         try:
             from .memory.cache import DiagnosisCache
 

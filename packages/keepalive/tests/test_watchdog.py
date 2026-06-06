@@ -294,3 +294,24 @@ def test_integration_not_connected_stops_with_recap(tmp_path: Path) -> None:
         wd.handle_failure(_event())
     assert "not connected" in str(ei.value).lower()
     assert any("integrations" in r.lower() or "not connected" in r.lower() for r in deps["esc"].recaps)
+
+
+def test_no_redis_url_engages_local_fallbacks() -> None:
+    from keepalive.watchdog import _LocalDeadlines
+
+    wd = Watchdog(run=None, settings=Settings(api_key="k"))
+
+    assert wd._redis_client() is None
+    assert isinstance(wd.deadline, _LocalDeadlines)
+    assert wd.bus is None
+    assert wd.router is None
+    assert wd.cache is None
+
+
+def test_agent_memory_requires_explicit_url() -> None:
+    from keepalive.memory.incidents import IncidentMemory
+
+    mem = IncidentMemory(Settings())
+    assert mem.available is False
+    assert mem._client() is None
+    assert mem.recall(_event()) == []

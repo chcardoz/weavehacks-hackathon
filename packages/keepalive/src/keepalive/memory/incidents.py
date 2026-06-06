@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Any
 
 from keepalive.config import Settings
@@ -17,6 +16,8 @@ class IncidentMemory:
     def available(self) -> bool:
         if self._injected is not None:
             return True
+        if not self.settings.agent_memory_url:
+            return False
         try:
             import agent_memory_client  # noqa: F401 # pyright: ignore[reportMissingImports]
         except Exception:
@@ -26,11 +27,14 @@ class IncidentMemory:
     def _client(self) -> Any | None:
         if self._injected is not None:
             return self._injected
+        if not self.settings.agent_memory_url:
+            return None
         try:
             from agent_memory_client import MemoryAPIClient, MemoryClientConfig  # pyright: ignore[reportMissingImports]
 
-            base_url = os.environ.get("AGENT_MEMORY_URL", "http://localhost:8000")
-            return MemoryAPIClient(MemoryClientConfig(base_url=base_url, default_namespace="keepalive"))
+            return MemoryAPIClient(
+                MemoryClientConfig(base_url=self.settings.agent_memory_url, default_namespace="keepalive")
+            )
         except Exception:
             return None
 

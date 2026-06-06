@@ -36,7 +36,8 @@ class Settings:
     wandb_api_key: str = ""
     cursor_api_key: str = ""
     cursor_api_url: str = "https://api.cursor.com"
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = ""
+    agent_memory_url: str = ""
     escalation_timeout_s: float = 120.0
     reply_poll_interval_s: float = 2.0
     probe_steps: int = 300
@@ -60,7 +61,8 @@ class Settings:
             wandb_api_key=_env("WANDB_API_KEY"),
             cursor_api_key=_env("CURSOR_API_KEY"),
             cursor_api_url=_env("CURSOR_API_URL", cls.cursor_api_url),
-            redis_url=_env("REDIS_URL", cls.redis_url),
+            redis_url=_env("REDIS_URL"),
+            agent_memory_url=_env("AGENT_MEMORY_URL"),
             escalation_timeout_s=_env_float("KEEPALIVE_TIMEOUT", cls.escalation_timeout_s),
             reply_poll_interval_s=_env_float("KEEPALIVE_REPLY_POLL_INTERVAL", cls.reply_poll_interval_s),
             probe_steps=_env_int("KEEPALIVE_PROBE_STEPS", cls.probe_steps),
