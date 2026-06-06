@@ -40,7 +40,8 @@ Telegram send, inbound reply webhook, key verification, the `/v1/llm` diagnosis 
 | `KEEPALIVE_DEV_KEYS` | optional comma-separated dev keys fallback when Postgres has no `apikey` row |
 
 The relay verifies `ka_live_` keys by sha256 lookup in the Postgres `apikey` table (the
-Better Auth schema the dashboard writes to), with `KEEPALIVE_DEV_KEYS` as a fallback for
+Better Auth schema the dashboard writes to) — the hash is encoded as unpadded base64url to
+match Better Auth's `defaultKeyHasher` — with `KEEPALIVE_DEV_KEYS` as a fallback for
 local / demo.
 
 ## 4. Custom domain
