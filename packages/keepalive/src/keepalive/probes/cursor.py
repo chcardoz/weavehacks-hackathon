@@ -30,11 +30,6 @@ def _looks_unconnected(status: int, body: str) -> bool:
 
 
 def _extract_branch(payload: dict[str, Any]) -> str | None:
-    target = payload.get("target")
-    if isinstance(target, dict) and target.get("branchName"):
-        return str(target["branchName"])
-    if payload.get("branchName"):
-        return str(payload["branchName"])
     git = payload.get("git")
     if isinstance(git, dict):
         branches = git.get("branches")
@@ -42,8 +37,15 @@ def _extract_branch(payload: dict[str, Any]) -> str | None:
             first = branches[0]
             if isinstance(first, str):
                 return first
-            if isinstance(first, dict) and first.get("name"):
-                return str(first["name"])
+            if isinstance(first, dict):
+                for key in ("branch", "name"):
+                    if first.get(key):
+                        return str(first[key])
+    target = payload.get("target")
+    if isinstance(target, dict) and target.get("branchName"):
+        return str(target["branchName"])
+    if payload.get("branchName"):
+        return str(payload["branchName"])
     return None
 
 
@@ -111,16 +113,13 @@ class CursorClient:
 
     def spawn_probe(self, hypothesis: FixHypothesis, ctx: RunContext, incident_id: str) -> ProbeSpec:
         spec = ProbeSpec(id=new_id("probe"), incident_id=incident_id, hypothesis=hypothesis)
-        branch = f"cursor/probe-{spec.id}"
         prompt = self._build_prompt(hypothesis, ctx)
         body: dict[str, Any] = {
             "prompt": {"text": prompt},
-            "source": {"repository": ctx.repo_url, "ref": ctx.commit_sha},
-            "target": {"branchName": branch, "autoCreatePr": False},
+            "repos": [{"url": ctx.repo_url, "startingRef": ctx.commit_sha}],
+            "autoCreatePR": False,
         }
-        agent_id = self._create_agent(body, ctx)
-        spec.agent_id = agent_id
-        spec.branch = branch
+        spec.agent_id = self._create_agent(body, ctx)
         spec.state = ProbeState.WRITING
         return spec
 
@@ -147,7 +146,11 @@ class CursorClient:
     @staticmethod
     def _parse_agent_id(result: Any) -> str | None:
         if isinstance(result, dict):
-            return result.get("id") or result.get("agentId")
+            agent = result.get("agent")
+            if isinstance(agent, dict) and agent.get("id"):
+                return str(agent["id"])
+            value = result.get("id") or result.get("agentId")
+            return str(value) if value else None
         for attr in ("id", "agentId", "agent_id"):
             value = getattr(result, attr, None)
             if value:

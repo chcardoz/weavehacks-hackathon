@@ -69,22 +69,30 @@ def test_spawn_probe_builds_rest_body_and_sets_spec() -> None:
     assert hyp.title in text
     assert hyp.instructions in text
 
-    # source maps to ctx
-    assert body["source"]["repository"] == ctx.repo_url
-    assert body["source"]["ref"] == ctx.commit_sha
-
-    # target branch name is deterministic from spec id
-    assert body["target"]["branchName"] == f"cursor/probe-{spec.id}"
+    # v1 contract: repos[] with url + startingRef, autoCreatePR off
+    assert body["repos"] == [{"url": ctx.repo_url, "startingRef": ctx.commit_sha}]
+    assert body["autoCreatePR"] is False
+    assert "source" not in body
+    assert "target" not in body
 
     # NO agentId anywhere in body
     flat = json.dumps(body)
     assert "agentId" not in flat
 
-    # response wiring
+    # response wiring; Cursor names the branch, so it stays unset until wait_for_branch
     assert spec.agent_id == "agent-1"
     assert spec.state == ProbeState.WRITING
-    assert spec.branch == f"cursor/probe-{spec.id}"
+    assert spec.branch is None
     assert spec.incident_id == "inc1"
+
+
+def test_spawn_probe_parses_nested_agent_id() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"agent": {"id": "bc-42"}, "run": {"id": "run-1"}})
+
+    client = _client(handler)
+    spec = client.spawn_probe(_hyp(), _ctx(), "inc1")
+    assert spec.agent_id == "bc-42"
 
 
 @pytest.mark.parametrize("status", [403, 404])
@@ -106,10 +114,16 @@ def test_spawn_probe_400_body_mentions_integration_raises() -> None:
         client.spawn_probe(_hyp(), _ctx(), "inc1")
 
 
-def test_wait_for_branch_running_then_finished_with_target() -> None:
+def test_wait_for_branch_running_then_finished_with_git_branches() -> None:
     responses = [
         httpx.Response(200, json={"status": "RUNNING"}),
-        httpx.Response(200, json={"status": "FINISHED", "target": {"branchName": "cursor/probe-x"}}),
+        httpx.Response(
+            200,
+            json={
+                "status": "FINISHED",
+                "git": {"branches": [{"repoUrl": "github.com/me/repo", "branch": "cursor/probe-x"}]},
+            },
+        ),
     ]
     calls = {"i": 0}
     sleeps: list[float] = []
@@ -136,6 +150,17 @@ def test_wait_for_branch_git_branches_list() -> None:
     spec = ProbeSpec(id="p2", incident_id="inc1", hypothesis=_hyp(), agent_id="agent-1")
     out = client.wait_for_branch(spec, timeout_s=100.0, poll_s=1.0, sleep_fn=lambda s: None)
     assert out.branch == "b"
+    assert out.state == ProbeState.READY
+
+
+def test_wait_for_branch_legacy_name_key_still_parses() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "RUNNING", "git": {"branches": [{"name": "cursor/legacy"}]}})
+
+    client = _client(handler)
+    spec = ProbeSpec(id="p6", incident_id="inc1", hypothesis=_hyp(), agent_id="agent-1")
+    out = client.wait_for_branch(spec, timeout_s=100.0, poll_s=1.0, sleep_fn=lambda s: None)
+    assert out.branch == "cursor/legacy"
     assert out.state == ProbeState.READY
 
 
