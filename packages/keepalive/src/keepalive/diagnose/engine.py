@@ -36,19 +36,35 @@ class DiagnosisEngine:
         self._cache = cache
 
     def _client(self) -> Any:
+        """Provider ladder: own OpenAI key > W&B Inference opt-in > keepalive relay proxy.
+
+        The relay default means users never supply an OpenAI key — their ka_live_ key
+        authenticates the proxied frontier-model call. Weave autopatching hooks the
+        client, so traces survive regardless of base_url.
+        """
         if self._injected_client is not None:
             return self._injected_client
         from openai import OpenAI
 
+        if self.settings.openai_api_key:
+            return OpenAI(api_key=self.settings.openai_api_key)
         if self.settings.use_wandb_inference:
             return OpenAI(
                 base_url=self.settings.wandb_inference_base_url,
                 api_key=self.settings.wandb_api_key,
             )
-        return OpenAI(api_key=self.settings.openai_api_key)
+        if not self.settings.api_key:
+            raise RuntimeError(
+                "no diagnosis provider configured: set KEEPALIVE_API_KEY (relay proxy), "
+                "OPENAI_API_KEY, or KEEPALIVE_USE_WANDB_INFERENCE=1 with WANDB_API_KEY"
+            )
+        return OpenAI(
+            base_url=f"{self.settings.api_url.rstrip('/')}/v1/llm",
+            api_key=self.settings.api_key,
+        )
 
     def _model(self) -> str:
-        if self.settings.use_wandb_inference:
+        if not self.settings.openai_api_key and self.settings.use_wandb_inference:
             return self.settings.wandb_inference_model
         return self.settings.diagnosis_model
 

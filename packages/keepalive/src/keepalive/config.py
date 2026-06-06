@@ -30,7 +30,6 @@ class Settings:
     telegram_chat_id: str = ""
     openai_api_key: str = ""
     diagnosis_model: str = "gpt-5.4"
-    probe_model: str = "gpt-5.4-mini"
     tts_model: str = "gpt-4o-mini-tts"
     tts_voice: str = "alloy"
     use_wandb_inference: bool = False
@@ -57,7 +56,6 @@ class Settings:
             telegram_chat_id=_env("KEEPALIVE_TELEGRAM_CHAT_ID"),
             openai_api_key=_env("OPENAI_API_KEY"),
             diagnosis_model=_env("KEEPALIVE_DIAGNOSIS_MODEL", cls.diagnosis_model),
-            probe_model=_env("KEEPALIVE_PROBE_MODEL", cls.probe_model),
             tts_model=_env("KEEPALIVE_TTS_MODEL", cls.tts_model),
             tts_voice=_env("KEEPALIVE_TTS_VOICE", cls.tts_voice),
             use_wandb_inference=_env_bool("KEEPALIVE_USE_WANDB_INFERENCE"),

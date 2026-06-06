@@ -307,6 +307,51 @@ def test_wandb_inference_model_selection() -> None:
     assert client.calls[0]["model"] == "openai/gpt-oss-120b"
 
 
+def test_own_openai_key_outranks_wandb_inference_for_model_choice() -> None:
+    settings = Settings(
+        openai_api_key="sk-user",
+        use_wandb_inference=True,
+        wandb_inference_model="openai/gpt-oss-120b",
+        diagnosis_model="gpt-5.4",
+        max_probes=3,
+    )
+    submit_args = {"summary": "s", "category": "c", "confidence": 0.5, "hypotheses": []}
+    client = FakeChat([make_response(tool_calls=[make_tool_call("t1", "submit_diagnosis", submit_args)])])
+    engine = DiagnosisEngine(settings, client=client)
+
+    engine.diagnose(make_incident(), FakeFetcher())  # type: ignore[arg-type]
+
+    assert client.calls[0]["model"] == "gpt-5.4"
+
+
+def test_relay_proxy_is_default_client() -> None:
+    settings = Settings(api_key="ka_live_abc", api_url="https://api.keepalive.club/")
+    engine = DiagnosisEngine(settings)
+
+    client = engine._client()
+
+    assert str(client.base_url).rstrip("/") == "https://api.keepalive.club/v1/llm"
+    assert client.api_key == "ka_live_abc"
+    assert engine._model() == "gpt-5.4"
+
+
+def test_own_openai_key_uses_direct_openai() -> None:
+    settings = Settings(api_key="ka_live_abc", openai_api_key="sk-user")
+    engine = DiagnosisEngine(settings)
+
+    client = engine._client()
+
+    assert "api.openai.com" in str(client.base_url)
+    assert client.api_key == "sk-user"
+
+
+def test_no_provider_configured_raises() -> None:
+    engine = DiagnosisEngine(Settings())
+
+    with pytest.raises(RuntimeError, match="no diagnosis provider"):
+        engine._client()
+
+
 # --------------------------------------------------------------------------- #
 # Tiny shim so the cache test mirrors the engine's private key derivation.     #
 # --------------------------------------------------------------------------- #
