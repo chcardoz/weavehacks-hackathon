@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from urllib.parse import urljoin
-
 import httpx
 
 from keepalive.config import Settings
@@ -29,12 +27,12 @@ class EscalationClient:
             timeout=15,
         )
 
-    def notify_incident(self, incident: Incident, voice_note_url: str | None = None) -> None:
+    def notify_incident(self, incident: Incident, voice_script: str | None = None) -> None:
         payload = {
             "incident_id": incident.id,
             "kind": "incident",
             "message": _short_message(incident),
-            "voice_note_url": voice_note_url,
+            "voice_script": voice_script,
             "trace_url": incident.trace_url,
             "chat_id": self.settings.telegram_chat_id,
         }
@@ -61,22 +59,9 @@ class EscalationClient:
             "incident_id": incident.id,
             "kind": "recap",
             "message": message,
-            "voice_note_url": None,
+            "voice_script": None,
             "trace_url": incident.trace_url,
             "chat_id": self.settings.telegram_chat_id,
         }
         resp = self.http.post("/v1/notify", json=payload)
         resp.raise_for_status()
-
-    def upload_voice_note(self, incident_id: str, mp3: bytes) -> str:
-        resp = self.http.post(
-            "/v1/voice-notes",
-            params={"incident_id": incident_id},
-            content=mp3,
-            headers={"Content-Type": "audio/mpeg"},
-        )
-        resp.raise_for_status()
-        url = resp.json()["url"]
-        if url.startswith("http://") or url.startswith("https://"):
-            return url
-        return urljoin(self.settings.api_url, url)

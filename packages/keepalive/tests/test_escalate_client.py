@@ -64,7 +64,7 @@ def test_notify_incident_posts_payload() -> None:
         return httpx.Response(200, json={"ok": True})
 
     client, captured = make_client(handler)
-    client.notify_incident(make_incident(), voice_note_url="https://audio/x.mp3")
+    client.notify_incident(make_incident(), voice_script="Hey, your run hit an OOM.")
 
     assert len(captured) == 1
     req = captured[0]
@@ -74,7 +74,7 @@ def test_notify_incident_posts_payload() -> None:
     assert body["incident_id"] == "inc_1"
     assert body["kind"] == "incident"
     assert body["chat_id"] == "123456789"
-    assert body["voice_note_url"] == "https://audio/x.mp3"
+    assert body["voice_script"] == "Hey, your run hit an OOM."
     assert body["trace_url"] == "https://weave.example/trace/1"
     msg = body["message"]
     assert "oom" in msg  # failure kind present
@@ -126,29 +126,4 @@ def test_send_recap_posts_recap_kind() -> None:
     assert captured[0].url.path == "/v1/notify"
     assert body["kind"] == "recap"
     assert body["message"] == "all fixed, winner promoted"
-
-
-def test_upload_voice_note_absolute_url_passthrough() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"url": "https://cdn.example/a.mp3"})
-
-    client, captured = make_client(handler)
-    url = client.upload_voice_note("inc_1", b"\x00\x01mp3bytes")
-
-    assert url == "https://cdn.example/a.mp3"
-    req = captured[0]
-    assert req.url.path == "/v1/voice-notes"
-    assert req.headers["Content-Type"] == "audio/mpeg"
-    assert req.content == b"\x00\x01mp3bytes"
-    assert req.url.params["incident_id"] == "inc_1"
-
-
-def test_upload_voice_note_relative_url_joined() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"url": "/a/x.mp3"})
-
-    settings = make_settings(api_url="https://api.test")
-    client, _ = make_client(handler, settings=settings)
-    url = client.upload_voice_note("inc_1", b"bytes")
-
-    assert url == "https://api.test/a/x.mp3"
+    assert body["voice_script"] is None

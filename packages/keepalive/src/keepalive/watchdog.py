@@ -412,12 +412,9 @@ class Watchdog:
         reply: HumanReply | None = None
         if escalate_enabled:
             voice = VoiceNoteBuilder(self.settings)
-            voice_url = _safely(
-                lambda: self.escalation.upload_voice_note(incident.id, voice.synthesize(voice.script_for(incident))),
-                "upload_voice_note",
-            )
+            script = _safely(lambda: voice.script_for(incident), "voice.script_for")
             _safely(
-                lambda: self.escalation.notify_incident(incident, voice_note_url=voice_url),
+                lambda: self.escalation.notify_incident(incident, voice_script=script),
                 "notify_incident",
             )
             incident.status = IncidentStatus.ESCALATED

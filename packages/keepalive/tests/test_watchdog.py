@@ -45,14 +45,11 @@ class FakeEscalation:
     def __init__(self) -> None:
         self.notify_count = 0
         self.recaps: list[str] = []
-        self.uploaded: list[Any] = []
+        self.scripts: list[str | None] = []
 
-    def upload_voice_note(self, incident_id: str, audio: bytes) -> str:
-        self.uploaded.append((incident_id, audio))
-        return "https://audio/x"
-
-    def notify_incident(self, incident: Any, voice_note_url: str | None = None) -> None:
+    def notify_incident(self, incident: Any, voice_script: str | None = None) -> None:
         self.notify_count += 1
+        self.scripts.append(voice_script)
 
     def fetch_reply(self, incident_id: str) -> HumanReply | None:  # pragma: no cover - overridden via deadline
         return None
@@ -135,16 +132,6 @@ class FakeExecutor:
 
     def kill(self, spec: ProbeSpec) -> None:
         self.killed.append(spec.id)
-
-
-@pytest.fixture(autouse=True)
-def _patch_voice(mocker: Any) -> Any:
-    """VoiceNoteBuilder is constructed inside _handle_failure; keep it offline."""
-    vb = mocker.patch("keepalive.escalate.voice.VoiceNoteBuilder")
-    instance = vb.return_value
-    instance.script_for.return_value = "script"
-    instance.synthesize.return_value = b"audio"
-    return vb
 
 
 def _build(

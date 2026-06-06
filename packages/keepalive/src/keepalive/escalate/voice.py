@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from typing import Any
-
 from keepalive.config import Settings
 from keepalive.types import Incident
 
 
 class VoiceNoteBuilder:
-    def __init__(self, settings: Settings, client: Any | None = None) -> None:
+    """Writes the voice-note script; the relay synthesizes and sends it server-side."""
+
+    def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.client = client
 
     def script_for(self, incident: Incident) -> str:
         failure = incident.failure
@@ -28,27 +27,3 @@ class VoiceNoteBuilder:
             f"to test fixes automatically. Tap a button, or reply one to roll back, "
             f"two to apply a fix, or three to stop the run."
         )
-
-    def synthesize(self, text: str) -> bytes:
-        client = self.client
-        if client is None:
-            import openai
-
-            client = openai.OpenAI(api_key=self.settings.openai_api_key)
-        response = client.audio.speech.create(
-            model=self.settings.tts_model,
-            voice=self.settings.tts_voice,
-            input=text,
-            response_format="mp3",
-        )
-        content = getattr(response, "content", None)
-        if isinstance(content, bytes):
-            return content
-        read = getattr(response, "read", None)
-        if callable(read):
-            data = read()
-            if isinstance(data, bytes):
-                return data
-        if isinstance(response, bytes):
-            return response
-        raise TypeError("TTS response did not expose bytes via .content or .read()")

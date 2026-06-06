@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import types as _types
-from typing import Any
-
 from keepalive.config import Settings
 from keepalive.escalate.voice import VoiceNoteBuilder
 from keepalive.types import (
@@ -65,36 +62,5 @@ def test_script_for_uses_deadline_when_present() -> None:
     assert "20 seconds" in script
 
 
-def test_synthesize_with_content_bytes() -> None:
-    class FakeResponse:
-        content = b"mp3-audio-bytes"
-
-    class FakeClient:
-        def __init__(self) -> None:
-            self.audio = _types.SimpleNamespace(speech=_types.SimpleNamespace(create=self._create))
-
-        def _create(self, **kwargs: Any) -> Any:
-            return FakeResponse()
-
-    builder = VoiceNoteBuilder(Settings(), client=FakeClient())
-    out = builder.synthesize("hello")
-    assert out == b"mp3-audio-bytes"
-
-
-def test_synthesize_with_read_method() -> None:
-    class FakeResponse:
-        content = None  # no usable .content
-
-        def read(self) -> bytes:
-            return b"read-bytes"
-
-    class FakeClient:
-        def __init__(self) -> None:
-            self.audio = _types.SimpleNamespace(speech=_types.SimpleNamespace(create=self._create))
-
-        def _create(self, **kwargs: Any) -> Any:
-            return FakeResponse()
-
-    builder = VoiceNoteBuilder(Settings(), client=FakeClient())
-    out = builder.synthesize("hello")
-    assert out == b"read-bytes"
+def test_builder_has_no_local_tts() -> None:
+    assert not hasattr(VoiceNoteBuilder(Settings()), "synthesize")
