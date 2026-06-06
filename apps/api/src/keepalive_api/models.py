@@ -9,14 +9,10 @@ class NotifyRequest(BaseModel):
     incident_id: str
     kind: Literal["incident", "recap"] = "incident"
     message: str
-    voice_note_url: str | None = None
+    voice_script: str | None = None
     trace_url: str | None = None
     chat_id: str
 
 
 class ReplyResponse(BaseModel):
     reply: str | None
-
-
-class VoiceNoteResponse(BaseModel):
-    url: str

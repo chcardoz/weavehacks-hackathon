@@ -1,34 +1,11 @@
 from __future__ import annotations
 
-import secrets
-
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 
-from keepalive_api.auth import require_api_key
-from keepalive_api.deps import get_redis, get_settings
-from keepalive_api.models import VoiceNoteResponse
+from keepalive_api.deps import get_redis
 
 router = APIRouter()
-
-_MAX_AUDIO_BYTES = 5_000_000
-
-
-@router.post("/v1/voice-notes")
-async def upload_voice_note(
-    incident_id: str,
-    request: Request,
-    _: str = Depends(require_api_key),
-) -> VoiceNoteResponse:
-    body = await request.body()
-    if not body or len(body) > _MAX_AUDIO_BYTES:
-        raise HTTPException(status_code=400, detail="audio must be 1..5_000_000 bytes")
-
-    settings = get_settings(request)
-    redis = get_redis(request)
-    note_id = secrets.token_urlsafe(8)
-    await redis.set(f"audio:{note_id}", body, ex=settings.voice_note_ttl_s)
-    return VoiceNoteResponse(url=f"{settings.public_base_url}/a/{note_id}")
 
 
 def _player_html(note_id: str) -> str:

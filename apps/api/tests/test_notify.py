@@ -1,8 +1,20 @@
 from __future__ import annotations
 
 import fakeredis.aioredis
+import httpx
 
-from .conftest import FakeTelegram, build_client, make_settings
+from .conftest import FakeOpenAI, FakeTelegram, build_client, make_settings
+
+MP3 = b"ID3fake-mp3-bytes"
+
+
+def _tts_response(status: int = 200) -> httpx.Response:
+    return httpx.Response(
+        status,
+        content=MP3 if status == 200 else b"{}",
+        headers={"content-type": "audio/mpeg" if status == 200 else "application/json"},
+        request=httpx.Request("POST", "https://api.openai.com/v1/audio/speech"),
+    )
 
 
 async def test_notify_dev_mode_returns_sent_false(client_app, auth_header):
@@ -81,25 +93,81 @@ async def test_notify_incident_sends_message_with_action_buttons(auth_header):
     assert rows[1][0]["url"] == "http://weave/trace/xyz"
 
 
-async def test_notify_with_voice_note_sends_voice(auth_header):
-    settings = make_settings(telegram_bot_token="123:abc")
+async def test_notify_with_voice_script_synthesizes_and_sends_voice(auth_header):
+    settings = make_settings(telegram_bot_token="123:abc", voice_note_ttl_s=1234)
     redis = fakeredis.aioredis.FakeRedis(decode_responses=False)
-    fake = FakeTelegram()
-    async with build_client(settings, fake_redis=redis, telegram=fake) as (client, _app):
+    telegram = FakeTelegram()
+    openai = FakeOpenAI(responses={"/audio/speech": _tts_response()})
+    async with build_client(settings, fake_redis=redis, telegram=telegram, openai=openai) as (client, _app):
         resp = await client.post(
             "/v1/notify",
             json={
                 "incident_id": "inc-1",
                 "message": "loss spiked",
-                "voice_note_url": "https://api.keepalive.club/a/abc.mp3",
+                "voice_script": "Your run hit a NaN at step 400.",
                 "chat_id": "123456789",
             },
             headers=auth_header,
         )
     assert resp.status_code == 200
-    voices = fake.calls_to("/sendVoice")
+
+    tts_calls = openai.calls_to("/audio/speech")
+    assert len(tts_calls) == 1
+    assert tts_calls[0]["input"] == "Your run hit a NaN at step 400."
+    assert tts_calls[0]["model"] == "gpt-4o-mini-tts"
+
+    voices = telegram.calls_to("/sendVoice")
     assert len(voices) == 1
-    assert voices[0] == {"chat_id": "123456789", "voice": "https://api.keepalive.club/a/abc.mp3"}
+    voice_url = voices[0]["voice"]
+    assert voice_url.startswith("http://localhost:8000/a/")
+
+    note_id = voice_url.rsplit("/a/", 1)[1]
+    assert await redis.get(f"audio:{note_id}") == MP3
+    ttl = await redis.ttl(f"audio:{note_id}")
+    assert 0 < ttl <= 1234
+
+
+async def test_notify_tts_failure_still_sends_message(auth_header):
+    settings = make_settings(telegram_bot_token="123:abc")
+    redis = fakeredis.aioredis.FakeRedis(decode_responses=False)
+    telegram = FakeTelegram()
+    openai = FakeOpenAI(responses={"/audio/speech": _tts_response(500)})
+    async with build_client(settings, fake_redis=redis, telegram=telegram, openai=openai) as (client, _app):
+        resp = await client.post(
+            "/v1/notify",
+            json={
+                "incident_id": "inc-1",
+                "message": "loss spiked",
+                "voice_script": "speak this",
+                "chat_id": "123456789",
+            },
+            headers=auth_header,
+        )
+    assert resp.status_code == 200
+    assert resp.json() == {"sent": True}
+    assert len(telegram.calls_to("/sendMessage")) == 1
+    assert telegram.calls_to("/sendVoice") == []
+
+
+async def test_notify_voice_script_without_openai_skips_voice(auth_header):
+    settings = make_settings(telegram_bot_token="123:abc")
+    redis = fakeredis.aioredis.FakeRedis(decode_responses=False)
+    telegram = FakeTelegram()
+    async with build_client(settings, fake_redis=redis, telegram=telegram) as (client, _app):
+        resp = await client.post(
+            "/v1/notify",
+            json={
+                "incident_id": "inc-1",
+                "message": "loss spiked",
+                "voice_script": "speak this",
+                "chat_id": "123456789",
+            },
+            headers=auth_header,
+        )
+    assert resp.status_code == 200
+    assert resp.json() == {"sent": True}
+    assert len(telegram.calls_to("/sendMessage")) == 1
+    assert telegram.calls_to("/sendVoice") == []
 
 
 async def test_notify_recap_has_no_action_buttons(auth_header):

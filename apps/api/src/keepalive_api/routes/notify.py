@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
+import secrets
 
 from fastapi import APIRouter, Depends, Request
 
 from keepalive_api.auth import require_api_key
-from keepalive_api.deps import get_redis, get_telegram
+from keepalive_api.deps import get_openai, get_redis, get_settings, get_telegram
 from keepalive_api.models import NotifyRequest
 
 logger = logging.getLogger("keepalive_api.notify")
@@ -13,6 +14,7 @@ logger = logging.getLogger("keepalive_api.notify")
 router = APIRouter()
 
 _MAX_TEXT_LEN = 4096  # Telegram sendMessage limit
+_MAX_TTS_INPUT_LEN = 4096  # OpenAI speech input limit
 
 
 def _keyboard(req: NotifyRequest) -> dict[str, object] | None:
@@ -35,6 +37,35 @@ def _keyboard(req: NotifyRequest) -> dict[str, object] | None:
     return {"inline_keyboard": rows} if rows else None
 
 
+async def _synthesize_voice(request: Request, script: str) -> str | None:
+    """TTS the script with the relay's OpenAI key and host the mp3 for Telegram to fetch.
+
+    Best-effort: any failure returns None and the text notify proceeds without a voice bubble.
+    """
+    openai = get_openai(request)
+    if openai is None:
+        logger.info("openai not configured; skipping voice synthesis")
+        return None
+
+    settings = get_settings(request)
+    resp = await openai.post(
+        "/audio/speech",
+        json={
+            "model": settings.tts_model,
+            "voice": settings.tts_voice,
+            "input": script[:_MAX_TTS_INPUT_LEN],
+            "response_format": "mp3",
+        },
+    )
+    if resp.is_error:
+        logger.warning("tts failed (%s): %s", resp.status_code, resp.text[:500])
+        return None
+
+    note_id = secrets.token_urlsafe(8)
+    await get_redis(request).set(f"audio:{note_id}", resp.content, ex=settings.voice_note_ttl_s)
+    return f"{settings.public_base_url}/a/{note_id}"
+
+
 @router.post("/v1/notify")
 async def notify(req: NotifyRequest, request: Request, _: str = Depends(require_api_key)) -> dict[str, bool]:
     redis = get_redis(request)
@@ -54,11 +85,11 @@ async def notify(req: NotifyRequest, request: Request, _: str = Depends(require_
     resp = await telegram.post("/sendMessage", json=payload)
     resp.raise_for_status()
 
-    if req.voice_note_url:
-        # Best-effort: Telegram fetches the mp3 from our public voice-note URL and
-        # renders it as a voice bubble. A failed voice send must not fail the notify.
-        voice_resp = await telegram.post("/sendVoice", json={"chat_id": req.chat_id, "voice": req.voice_note_url})
-        if voice_resp.is_error:
-            logger.warning("sendVoice failed (%s): %s", voice_resp.status_code, voice_resp.text)
+    if req.voice_script:
+        voice_url = await _synthesize_voice(request, req.voice_script)
+        if voice_url:
+            voice_resp = await telegram.post("/sendVoice", json={"chat_id": req.chat_id, "voice": voice_url})
+            if voice_resp.is_error:
+                logger.warning("sendVoice failed (%s): %s", voice_resp.status_code, voice_resp.text)
 
     return {"sent": True}

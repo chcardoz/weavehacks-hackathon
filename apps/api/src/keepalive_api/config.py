@@ -18,6 +18,8 @@ class ApiSettings:
     openai_api_key: str = ""
     llm_allowed_models: frozenset[str] = frozenset(_DEFAULT_LLM_MODELS.split(","))
     llm_rate_limit_per_min: int = 30
+    tts_model: str = "gpt-4o-mini-tts"
+    tts_voice: str = "alloy"
 
     @classmethod
     def from_env(cls) -> ApiSettings:
@@ -36,6 +38,8 @@ class ApiSettings:
             openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
             llm_allowed_models=allowed_models,
             llm_rate_limit_per_min=int(os.environ.get("KEEPALIVE_LLM_RATE_LIMIT_PER_MIN", "30")),
+            tts_model=os.environ.get("KEEPALIVE_TTS_MODEL", "gpt-4o-mini-tts"),
+            tts_voice=os.environ.get("KEEPALIVE_TTS_VOICE", "alloy"),
         )
 
     @property
