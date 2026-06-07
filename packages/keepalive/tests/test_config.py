@@ -33,6 +33,9 @@ def test_default_api_url() -> None:
     s = Settings.resolve()
     assert s.api_url == "https://weavehacks-hackathon-dashboard.vercel.app"
     assert s.api_key == ""
+    assert s.heartbeat_interval_s == 5.0
+    assert s.loss_key == "loss"
+    assert s.weave_project == "keepalive"
 
 
 def test_config_file_used_when_env_absent() -> None:
