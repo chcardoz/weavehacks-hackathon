@@ -1,7 +1,10 @@
 import {
+  bigserial,
   boolean,
+  doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -106,10 +109,145 @@ export const apikey = pgTable(
   ],
 )
 
+// --- observability tables (see infra/observability.md for the contract) ---
+
+export const project = pgTable("project", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  repo: text("repo"),
+  wandbRunId: text("wandb_run_id"),
+  wandbUrl: text("wandb_url"),
+  commitSha: text("commit_sha"),
+  status: text("status")
+    .$defaultFn(() => "training")
+    .notNull(),
+  currentStep: integer("current_step"),
+  latestLoss: doublePrecision("latest_loss"),
+  lossHistory: jsonb("loss_history"),
+  demoMode: boolean("demo_mode").$defaultFn(() => false),
+  apikeyId: text("apikey_id"),
+  lastEventAt: timestamp("last_event_at"),
+  createdAt: timestamp("created_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+  updatedAt: timestamp("updated_at")
+    .$defaultFn(() => new Date())
+    .notNull(),
+})
+
+export const incident = pgTable(
+  "incident",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    step: integer("step"),
+    status: text("status")
+      .$defaultFn(() => "detected")
+      .notNull(),
+    diagnosis: text("diagnosis"),
+    humanReply: text("human_reply"),
+    deadlineAt: timestamp("deadline_at"),
+    weaveUrl: text("weave_url"),
+    winnerAgentId: text("winner_agent_id"),
+    resolvedAt: timestamp("resolved_at"),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("incident_project_id_idx").on(table.projectId)],
+)
+
+export const agent = pgTable(
+  "agent",
+  {
+    id: text("id").primaryKey(),
+    incidentId: text("incident_id")
+      .notNull()
+      .references(() => incident.id, { onDelete: "cascade" }),
+    projectId: text("project_id").notNull(),
+    hypothesis: text("hypothesis"),
+    cursorAgentId: text("cursor_agent_id"),
+    branch: text("branch"),
+    state: text("state")
+      .$defaultFn(() => "spawned")
+      .notNull(),
+    wandbRunId: text("wandb_run_id"),
+    finalLoss: doublePrecision("final_loss"),
+    lossHistory: jsonb("loss_history"),
+    error: text("error"),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("agent_incident_id_idx").on(table.incidentId),
+    index("agent_project_id_idx").on(table.projectId),
+  ],
+)
+
+export const event = pgTable(
+  "event",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    projectId: text("project_id").notNull(),
+    incidentId: text("incident_id"),
+    agentId: text("agent_id"),
+    source: text("source").notNull(),
+    level: text("level")
+      .$defaultFn(() => "info")
+      .notNull(),
+    type: text("type").notNull(),
+    message: text("message").notNull(),
+    data: jsonb("data"),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("event_project_id_id_idx").on(table.projectId, table.id),
+    index("event_incident_id_idx").on(table.incidentId),
+  ],
+)
+
+export const command = pgTable(
+  "command",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    status: text("status")
+      .$defaultFn(() => "pending")
+      .notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at")
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("command_project_id_status_idx").on(table.projectId, table.status),
+  ],
+)
+
 export const schema = {
   user,
   session,
   account,
   verification,
   apikey,
+  project,
+  incident,
+  agent,
+  event,
+  command,
 }
