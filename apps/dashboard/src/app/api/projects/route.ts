@@ -1,8 +1,9 @@
 import { headers } from "next/headers"
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 import { desc, eq, inArray, sql } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { getOctokit } from "@/lib/github"
 import { agent, incident, project, run } from "@/db/schema"
 import {
   type Incident,
@@ -154,4 +155,110 @@ export async function GET() {
   })
 
   return NextResponse.json({ projects: items })
+}
+
+// --- POST /api/projects: create a project from a chosen GitHub repo ---
+
+interface CreateBody {
+  repoOwner?: unknown
+  repoName?: unknown
+  defaultBranch?: unknown
+  name?: unknown
+}
+
+export async function POST(req: NextRequest) {
+  const hdrs = await headers()
+  const session = await auth.api.getSession({ headers: hdrs })
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  let body: CreateBody | null
+  try {
+    body = (await req.json()) as CreateBody
+  } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 })
+  }
+
+  const repoOwner = typeof body?.repoOwner === "string" ? body.repoOwner.trim() : ""
+  const repoName = typeof body?.repoName === "string" ? body.repoName.trim() : ""
+  const defaultBranch =
+    typeof body?.defaultBranch === "string" && body.defaultBranch.trim() !== ""
+      ? body.defaultBranch.trim()
+      : "main"
+  const customName =
+    typeof body?.name === "string" && body.name.trim() !== ""
+      ? body.name.trim()
+      : null
+
+  if (!repoOwner || !repoName) {
+    return NextResponse.json(
+      { error: "invalid_body", message: "repoOwner and repoName are required" },
+      { status: 400 },
+    )
+  }
+
+  const projectId = crypto.randomUUID()
+
+  // Mint a training API key (raw key stored on the project for sandbox runs).
+  let trainingApiKey: string | null = null
+  try {
+    const created = await auth.api.createApiKey({
+      body: {
+        name: `training:${projectId}`,
+        prefix: "ka_live_",
+        userId: session.user.id,
+      },
+    })
+    trainingApiKey = created?.key ?? null
+  } catch (e) {
+    console.error("createApiKey failed", e)
+  }
+
+  // Create the GitHub push webhook (non-fatal on failure).
+  let webhookId: number | null = null
+  let webhookWarning: string | null = null
+  const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET
+  const baseUrl = process.env.BETTER_AUTH_URL
+  try {
+    const octokit = await getOctokit(session.user.id)
+    const { data } = await octokit.rest.repos.createWebhook({
+      owner: repoOwner,
+      repo: repoName,
+      config: {
+        url: `${baseUrl}/api/github/webhook`,
+        content_type: "json",
+        secret: webhookSecret,
+      },
+      events: ["push"],
+    })
+    webhookId = data.id
+  } catch (e) {
+    webhookWarning =
+      "Project created, but the GitHub push webhook could not be installed. " +
+      "Check that you have admin access to the repo and that GitHub is connected."
+    console.error("createWebhook failed", (e as Error).message)
+  }
+
+  const [created] = await db
+    .insert(project)
+    .values({
+      id: projectId,
+      userId: session.user.id,
+      name: customName ?? repoName,
+      repoOwner,
+      repoName,
+      defaultBranch,
+      webhookId,
+      trainingApiKey,
+    })
+    .returning()
+
+  return NextResponse.json(
+    {
+      project: { id: created.id, name: created.name },
+      webhookWarning,
+    },
+    { status: 201 },
+  )
 }

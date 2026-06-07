@@ -210,6 +210,40 @@ export function agentStateTone(
   }
 }
 
+// Maps an incident status to a shadcn Badge variant + extra classes.
+export function incidentStatusTone(status: IncidentStatus | string): {
+  variant: BadgeTone
+  className: string
+} {
+  switch (status) {
+    case "detected":
+      return {
+        variant: "muted",
+        className: "bg-red-500/15 text-red-400 border-transparent",
+      }
+    case "hypothesizing":
+      return {
+        variant: "muted",
+        className:
+          "bg-primary/15 text-primary border-transparent animate-pulse",
+      }
+    case "fixing":
+      return {
+        variant: "muted",
+        className: "bg-amber-500/15 text-amber-400 border-transparent",
+      }
+    case "resolved":
+      return {
+        variant: "muted",
+        className: "bg-emerald-500/15 text-emerald-400 border-transparent",
+      }
+    case "failed":
+      return { variant: "destructive", className: "" }
+    default:
+      return { variant: "muted", className: "" }
+  }
+}
+
 // Maps an event source to a muted hued badge class.
 export function eventSourceClass(source: EventSource | string): string {
   switch (source) {

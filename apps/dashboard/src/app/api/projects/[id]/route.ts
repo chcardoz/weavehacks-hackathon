@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { and, asc, desc, eq, gt } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { getOctokit } from "@/lib/github"
 import { agent, event, incident, project, run } from "@/db/schema"
 import {
   type AgentRow,
@@ -191,4 +192,131 @@ export async function GET(
     agents,
     events,
   })
+}
+
+// --- PATCH /api/projects/[id]: edit project config (whitelisted columns) ---
+
+const MONITOR_MODELS = new Set([
+  "wandb/microsoft/Phi-4-mini-instruct",
+  "openai/gpt-5.4-mini",
+  "openai/gpt-5.4",
+])
+
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  const { id } = await ctx.params
+
+  const [projectRow] = await db
+    .select({ userId: project.userId })
+    .from(project)
+    .where(eq(project.id, id))
+    .limit(1)
+  if (!projectRow || projectRow.userId !== session.user.id) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 })
+  }
+
+  let body: Record<string, unknown> | null
+  try {
+    body = (await req.json()) as Record<string, unknown>
+  } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 })
+  }
+
+  const updates: Partial<typeof project.$inferInsert> = {}
+
+  if (typeof body.name === "string" && body.name.trim() !== "") {
+    updates.name = body.name.trim()
+  }
+  if (typeof body.trainCommand === "string" && body.trainCommand.trim() !== "") {
+    updates.trainCommand = body.trainCommand.trim()
+  }
+  if (
+    typeof body.defaultBranch === "string" &&
+    body.defaultBranch.trim() !== ""
+  ) {
+    updates.defaultBranch = body.defaultBranch.trim()
+  }
+  if (typeof body.monitoringPrompt === "string") {
+    const v = body.monitoringPrompt.trim()
+    updates.monitoringPrompt = v === "" ? null : v
+  }
+  if (typeof body.fixingPrompt === "string") {
+    const v = body.fixingPrompt.trim()
+    updates.fixingPrompt = v === "" ? null : v
+  }
+  if (typeof body.confidenceThreshold === "number") {
+    updates.confidenceThreshold = Math.min(
+      1,
+      Math.max(0, body.confidenceThreshold),
+    )
+  }
+  if (typeof body.maxAgents === "number") {
+    updates.maxAgents = Math.min(5, Math.max(1, Math.round(body.maxAgents)))
+  }
+  if (
+    typeof body.monitorModel === "string" &&
+    MONITOR_MODELS.has(body.monitorModel)
+  ) {
+    updates.monitorModel = body.monitorModel
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "no_valid_fields" }, { status: 400 })
+  }
+
+  updates.updatedAt = new Date()
+
+  await db.update(project).set(updates).where(eq(project.id, id))
+
+  return NextResponse.json({ ok: true })
+}
+
+// --- DELETE /api/projects/[id]: cascade-delete + best-effort webhook removal ---
+
+export async function DELETE(
+  _req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  const { id } = await ctx.params
+
+  const [projectRow] = await db
+    .select()
+    .from(project)
+    .where(eq(project.id, id))
+    .limit(1)
+  if (!projectRow || projectRow.userId !== session.user.id) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 })
+  }
+
+  // Best-effort: remove the GitHub webhook we installed.
+  if (projectRow.webhookId != null) {
+    try {
+      const octokit = await getOctokit(session.user.id)
+      await octokit.rest.repos.deleteWebhook({
+        owner: projectRow.repoOwner,
+        repo: projectRow.repoName,
+        hook_id: projectRow.webhookId,
+      })
+    } catch (e) {
+      console.error("deleteWebhook failed", (e as Error).message)
+    }
+  }
+
+  // event has no FK cascade — delete it explicitly. The rest cascade from project.
+  await db.delete(event).where(eq(event.projectId, id))
+  await db.delete(project).where(eq(project.id, id))
+
+  return NextResponse.json({ ok: true })
 }

@@ -3,7 +3,14 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Activity, BookOpen, FolderGit2, KeyRound, Settings } from "lucide-react"
+import {
+  ArrowLeft,
+  Bot,
+  Brain,
+  LayoutDashboard,
+  Settings,
+  TriangleAlert,
+} from "lucide-react"
 import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
@@ -18,34 +25,46 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 
-const nav = [
-  { title: "Projects", href: "/projects", icon: FolderGit2 },
-  { title: "API keys", href: "/keys", icon: KeyRound },
-  { title: "Settings", href: "/settings", icon: Settings },
-]
-
-export function AppSidebar({
+export function ProjectSidebar({
+  projectId,
+  projectName,
   userEmail,
   ...props
-}: React.ComponentProps<typeof Sidebar> & { userEmail: string }) {
+}: React.ComponentProps<typeof Sidebar> & {
+  projectId: string
+  projectName: string
+  userEmail: string
+}) {
   const pathname = usePathname()
+  const base = `/projects/${projectId}`
+
+  const nav = [
+    { title: "Overview", href: base, icon: LayoutDashboard, exact: true },
+    {
+      title: "Incidents",
+      href: `${base}/incidents`,
+      icon: TriangleAlert,
+      exact: false,
+    },
+    { title: "Agents", href: `${base}/agents`, icon: Bot, exact: false },
+    { title: "Memory", href: `${base}/memory`, icon: Brain, exact: false },
+    {
+      title: "Settings",
+      href: `${base}/settings`,
+      icon: Settings,
+      exact: false,
+    },
+  ]
 
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <Activity className="size-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">keepalive</span>
-                  <span className="truncate text-xs text-sidebar-foreground/70">
-                    training watchdog
-                  </span>
-                </div>
+            <SidebarMenuButton asChild tooltip="All projects">
+              <Link href="/projects">
+                <ArrowLeft />
+                <span>All projects</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -53,15 +72,19 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Platform</SidebarGroupLabel>
+          <SidebarGroupLabel className="truncate">
+            {projectName}
+          </SidebarGroupLabel>
           <SidebarMenu>
             {nav.map((item) => (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
                   isActive={
-                    pathname === item.href ||
-                    pathname.startsWith(`${item.href}/`)
+                    item.exact
+                      ? pathname === item.href
+                      : pathname === item.href ||
+                        pathname.startsWith(`${item.href}/`)
                   }
                   tooltip={item.title}
                 >
@@ -72,14 +95,6 @@ export function AppSidebar({
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Docs">
-                <Link href="/docs">
-                  <BookOpen />
-                  <span>Docs</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>

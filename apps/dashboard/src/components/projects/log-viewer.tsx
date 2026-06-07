@@ -14,11 +14,12 @@ import {
 
 const ALL_SOURCES: EventSource[] = [
   "library",
-  "relay",
-  "cursor",
+  "server",
+  "monitor",
+  "hypothesis",
+  "coder",
   "sandbox",
-  "openai",
-  "wandb",
+  "github",
 ]
 
 function fmtTime(iso: string): string {

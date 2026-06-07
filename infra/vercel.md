@@ -83,3 +83,37 @@ the user admins). Set this up before first sign-in.
 The GitHub access token is stored by Better Auth in the `account` table
 (`provider_id = 'github'`); server code reads it via `getOctokit(userId)` in
 `src/lib/github.ts`. OAuth-App tokens don't expire, so there's no refresh flow.
+
+## Training launch
+
+Merging to a project's default branch triggers a training run, end to end:
+
+```
+GitHub push → POST /api/github/webhook (raw-body HMAC) → start(trainingLaunch)
+  → Vercel Sandbox (python3.13): pip install "wandb[sandbox]", run launcher.py
+  → launcher.py starts a W&B Sandbox running the project's trainCommand
+  → project.status = 'training'; training metrics flow back via the library reporter
+```
+
+Required env / setup:
+
+- `GITHUB_WEBHOOK_SECRET` — shared secret for the push webhook. The webhook is
+  created **automatically at project creation** (Octokit, on the user's repo),
+  so the secret must be set before any project is created. The route validates
+  `x-hub-signature-256` over the exact raw bytes and 401s on mismatch.
+- `BETTER_AUTH_URL` — must be the **public** dashboard URL. It is passed into the
+  W&B sandbox as `KEEPALIVE_API_URL` so the keepalive library inside the training
+  run can POST events back to `/api/v1/events`.
+- Each user must set their **W&B API key in Settings** (`user.wandbApiKey`). It
+  authenticates both the W&B Sandbox client and the training run's `wandb` login.
+  A missing key (or missing GitHub token / project training key) surfaces as a
+  readable `training.failed` event in the project feed — the launch never crashes
+  the workflow.
+
+Only pushes to `project.defaultBranch` launch training. Agent fix branches
+(`keepalive/fix-*`) and branch deletions are ignored, so coding-agent PRs never
+kick off a training run.
+
+CPU-only on the serverless sandbox tier (GPU is roadmap); the demo trains a tiny
+model. No `run` row is pre-created — the keepalive library inside the W&B sandbox
+reports its own run id and the ingest path creates the run.

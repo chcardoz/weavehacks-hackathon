@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ExternalLink, FolderGit2 } from "lucide-react"
+import { ExternalLink, FolderGit2, Plus, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -14,6 +14,7 @@ import {
   projectStatusTone,
 } from "@/lib/observability-types"
 import { useNow } from "./use-now"
+import { NewProjectDialog } from "./new-project-dialog"
 
 function ActivityLine({ item }: { item: ProjectListItem }) {
   const kind = projectActivityKind(item)
@@ -41,7 +42,11 @@ function ActivityLine({ item }: { item: ProjectListItem }) {
       )
     }
     case "incident":
-      return <span className="text-red-400">{kind} detected</span>
+      return (
+        <span className="flex items-center gap-1.5 text-red-400">
+          <TriangleAlert className="size-3.5" /> {kind} detected
+        </span>
+      )
     case "fixing":
       return (
         <span className="text-primary">
@@ -72,6 +77,9 @@ function ProjectCard({ item, now }: { item: ProjectListItem; now: number }) {
               aria-hidden="true"
             />
             <span className="truncate font-medium">{item.name}</span>
+            {item.activeIncident && (
+              <span className="ml-auto inline-flex size-2 shrink-0 animate-pulse rounded-full bg-red-500" />
+            )}
           </div>
           <div className="truncate font-mono text-xs text-muted-foreground">
             {repo}
@@ -82,9 +90,7 @@ function ProjectCard({ item, now }: { item: ProjectListItem; now: number }) {
           <ActivityLine item={item} />
         </CardContent>
         <CardFooter className="justify-between text-xs text-muted-foreground">
-          <span>
-            last event {formatRelative(run?.lastEventAt ?? null, now)}
-          </span>
+          <span>last event {formatRelative(run?.lastEventAt ?? null, now)}</span>
           {run?.wandbUrl && (
             <Button
               asChild
@@ -109,27 +115,49 @@ function ProjectCard({ item, now }: { item: ProjectListItem; now: number }) {
   )
 }
 
-function EmptyState() {
+function OnboardingCard({ onNew }: { onNew: () => void }) {
   return (
-    <div className="mx-auto flex max-w-xl flex-1 items-center justify-center py-16">
+    <div className="mx-auto flex max-w-xl flex-1 items-center justify-center py-12">
       <Card className="w-full">
         <CardHeader>
           <div className="flex items-center gap-2">
             <FolderGit2 className="size-5 text-muted-foreground" />
-            <span className="font-medium">No projects yet</span>
+            <span className="font-medium">Create your first project</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            Start a watched training run and it will show up here live.
+            Connect a GitHub repo, then wire keepalive into your training script.
           </p>
         </CardHeader>
-        <CardContent>
-          <pre className="overflow-x-auto rounded-lg border border-border bg-muted/40 p-4 text-xs">
-            <code className="font-mono text-foreground">{`import keepalive
-
-with keepalive.watchdog(run, prompt="Flag if val/loss diverges",
-                        threshold=0.6, max_agents=3):
-    train(model)`}</code>
-          </pre>
+        <CardContent className="space-y-4">
+          <Button onClick={onNew}>
+            <Plus /> New project
+          </Button>
+          <ol className="space-y-3 text-sm">
+            <li className="space-y-1">
+              <span className="text-muted-foreground">
+                1. Install + log in locally
+              </span>
+              <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 text-xs">
+                <code className="font-mono">{`pip install keepalive
+keepalive login`}</code>
+              </pre>
+            </li>
+            <li className="text-muted-foreground">
+              2. Hand the agent blurb to your coding agent to wire keepalive +
+              wandb in —{" "}
+              <Link
+                href="/docs/agent-blurb"
+                className="text-primary hover:underline"
+              >
+                copy the blurb
+              </Link>
+              .
+            </li>
+            <li className="text-muted-foreground">
+              3. Merge to your default branch and training launches in a W&B
+              Sandbox.
+            </li>
+          </ol>
         </CardContent>
       </Card>
     </div>
@@ -139,6 +167,7 @@ with keepalive.watchdog(run, prompt="Flag if val/loss diverges",
 export function ProjectsGrid() {
   const [items, setItems] = useState<ProjectListItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
   const now = useNow(1000)
   const mounted = useRef(true)
 
@@ -189,18 +218,33 @@ export function ProjectsGrid() {
     )
   }
 
-  if (items.length === 0) {
-    return <EmptyState />
-  }
-
   return (
-    <div className="space-y-3">
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((item) => (
-          <ProjectCard key={item.id} item={item} now={now} />
-        ))}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">Projects</h1>
+          <p className="text-sm text-muted-foreground">
+            Repos keepalive is watching.
+          </p>
+        </div>
+        <Button onClick={() => setDialogOpen(true)}>
+          <Plus /> New project
+        </Button>
       </div>
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
+
+      {items.length === 0 ? (
+        <OnboardingCard onNew={() => setDialogOpen(true)} />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item) => (
+            <ProjectCard key={item.id} item={item} now={now} />
+          ))}
+        </div>
+      )}
+
+      <NewProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   )
 }
