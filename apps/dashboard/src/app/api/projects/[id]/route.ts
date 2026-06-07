@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { getOctokit } from "@/lib/github"
 import { agent, event, incident, project, run } from "@/db/schema"
+import { MONITOR_MODEL_OPTIONS } from "@/lib/ai/model-ids"
 import {
   type AgentRow,
   type AgentState,
@@ -196,11 +197,7 @@ export async function GET(
 
 // --- PATCH /api/projects/[id]: edit project config (whitelisted columns) ---
 
-const MONITOR_MODELS = new Set([
-  "wandb/microsoft/Phi-4-mini-instruct",
-  "openai/gpt-5.4-mini",
-  "openai/gpt-5.4",
-])
+const MONITOR_MODELS = new Set<string>(MONITOR_MODEL_OPTIONS)
 
 export async function PATCH(
   req: NextRequest,

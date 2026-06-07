@@ -70,9 +70,9 @@ export function InjectControls({
         size="sm"
         className="h-8 border-primary/40 text-primary hover:bg-primary/10"
         disabled={disabled || busy}
-        onClick={() => inject("inject_nan")}
+        onClick={() => inject("inject_oom")}
       >
-        <Zap className="size-3" /> Inject NaN
+        <Zap className="size-3" /> Inject OOM
       </Button>
       <Button
         variant="outline"
@@ -95,11 +95,11 @@ export function InjectControls({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => inject("inject_nan")}>
+            NaN
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => inject("inject_stall")}>
             Stall
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => inject("inject_oom")}>
-            OOM
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

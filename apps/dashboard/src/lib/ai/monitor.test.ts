@@ -121,4 +121,17 @@ describe("scoreMetrics", () => {
       metadata: { projectId: "proj_1", runId: "run_1" },
     });
   });
+
+  it("routes legacy W&B monitor ids to the Gateway mini model", async () => {
+    generateText.mockResolvedValue({
+      output: { confidence: 1, reasoning: "ok", signals: ["none"] },
+    });
+
+    await scoreMetrics({
+      ...baseParams,
+      monitorModel: "wandb/microsoft/Phi-4-mini-instruct",
+    });
+
+    expect(generateText.mock.calls[0][0].model).toBe("openai/gpt-5.4-mini");
+  });
 });

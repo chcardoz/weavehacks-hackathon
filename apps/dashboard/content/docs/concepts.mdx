@@ -17,7 +17,7 @@ server keeps a rolling window of recent steps per run.
 
 Every ~20 seconds while a run is training, the monitoring agent scores that window against
 your project's **monitoring prompt** using a cheap model (default
-`wandb/microsoft/Phi-4-mini-instruct` on W&B Inference). It returns structured output:
+`openai/gpt-5.4-mini` via AI Gateway). It returns structured output:
 
 ```json
 { "confidence": 0.0-1.0, "reasoning": "one line", "signals": ["..."] }
