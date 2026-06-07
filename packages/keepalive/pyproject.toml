@@ -1,6 +1,6 @@
 [project]
 name = "keepalive-club"
-version = "0.2.1"
+version = "0.2.2"
 description = "Thin client watchdog for GPU training runs: detects failures and reports metrics/events to the keepalive dashboard, which diagnoses and opens fix PRs."
 readme = "README.md"
 license = "MIT"

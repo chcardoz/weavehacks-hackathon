@@ -76,6 +76,12 @@ export const auth = betterAuth({
     apiKey({
       defaultPrefix: "ka_live_",
       enableMetadata: true,
+      rateLimit: {
+        // keepalive keys authenticate high-frequency telemetry and demo command
+        // polling. Better Auth's API-key default is 10 validations/day, which
+        // exhausts in seconds during a live training run.
+        enabled: false,
+      },
     }),
   ],
 })

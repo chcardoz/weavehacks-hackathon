@@ -8,6 +8,9 @@ from pathlib import Path
 CONFIG_PATH = Path.home() / ".config" / "keepalive" / "config.json"
 
 _DEFAULT_API_URL = "https://weavehacks-hackathon-dashboard.vercel.app"
+_DEFAULT_HEARTBEAT_INTERVAL_S = 5.0
+_DEFAULT_LOSS_KEY = "loss"
+_DEFAULT_WEAVE_PROJECT = "keepalive"
 
 
 def _load_config_file() -> dict[str, str]:
@@ -35,10 +38,10 @@ def _env_bool(name: str, default: bool = False) -> bool:
 class Settings:
     api_key: str = ""
     api_url: str = _DEFAULT_API_URL
-    heartbeat_interval_s: float = 5.0
-    loss_key: str = "loss"
+    heartbeat_interval_s: float = _DEFAULT_HEARTBEAT_INTERVAL_S
+    loss_key: str = _DEFAULT_LOSS_KEY
     demo_mode: bool = False
-    weave_project: str = "keepalive"
+    weave_project: str = _DEFAULT_WEAVE_PROJECT
 
     @classmethod
     def resolve(
@@ -61,15 +64,15 @@ class Settings:
             else os.environ.get("KEEPALIVE_API_URL") or file_cfg.get("api_url") or _DEFAULT_API_URL
         )
         resolved_demo = _env_bool("KEEPALIVE_DEMO") if demo_mode is None else demo_mode
-        resolved_loss_key = loss_key if loss_key is not None else os.environ.get("KEEPALIVE_LOSS_KEY", cls.loss_key)
+        resolved_loss_key = loss_key if loss_key is not None else os.environ.get("KEEPALIVE_LOSS_KEY", _DEFAULT_LOSS_KEY)
 
         return cls(
             api_key=resolved_api_key,
             api_url=resolved_api_url,
-            heartbeat_interval_s=_env_float("KEEPALIVE_HEARTBEAT_INTERVAL", cls.heartbeat_interval_s),
+            heartbeat_interval_s=_env_float("KEEPALIVE_HEARTBEAT_INTERVAL", _DEFAULT_HEARTBEAT_INTERVAL_S),
             loss_key=resolved_loss_key,
             demo_mode=resolved_demo,
-            weave_project=os.environ.get("KEEPALIVE_WEAVE_PROJECT", cls.weave_project),
+            weave_project=os.environ.get("KEEPALIVE_WEAVE_PROJECT", _DEFAULT_WEAVE_PROJECT),
         )
 
     @classmethod
