@@ -1,7 +1,7 @@
 {
   "name": "keepalive-monorepo",
   "private": true,
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@10.25.0",
   "scripts": {
     "lint": "pnpm --filter dashboard lint",
     "fmt": "pnpm --filter dashboard fmt",
@@ -10,6 +10,9 @@
   "pnpm": {
     "overrides": {
       "kysely": "0.28.17"
+    },
+    "patchedDependencies": {
+      "@vercel/sandbox@2.1.1": "patches/@vercel__sandbox@2.1.1.patch"
     }
   }
 }

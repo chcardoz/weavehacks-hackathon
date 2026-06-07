@@ -1,0 +1,69 @@
+diff --git a/dist/command.js b/dist/command.js
+index 3ea3b00d05bb32e7cb881a57dd63ffb08eaa44bd..17dd873edb457508aab4501ad9b3582a9c87aaab 100644
+--- a/dist/command.js
++++ b/dist/command.js
+@@ -323,4 +323,3 @@ var CommandFinished = class CommandFinished extends Command {
+ 
+ //#endregion
+ export { Command, CommandFinished };
+-//# sourceMappingURL=command.js.map
+\ No newline at end of file
+diff --git a/dist/filesystem.js b/dist/filesystem.js
+index 527e1594c1a2f316755b4ce3fb4ef994cdb52035..5917053af9ad57422fee6999a4571fffa866a166 100644
+--- a/dist/filesystem.js
++++ b/dist/filesystem.js
+@@ -494,4 +494,3 @@ var FileSystem = class {
+ 
+ //#endregion
+ export { FileSystem };
+-//# sourceMappingURL=filesystem.js.map
+\ No newline at end of file
+diff --git a/dist/proxy.js b/dist/proxy.js
+index 377ff3038a216ee1e00a48c3cf472387fb96ebcb..2e6dc6062a0b87d03430d9affc5b38b1eb16f868 100644
+--- a/dist/proxy.js
++++ b/dist/proxy.js
+@@ -138,4 +138,3 @@ function getClaim(claims, name) {
+ 
+ //#endregion
+ export { defineSandboxProxy };
+-//# sourceMappingURL=proxy.js.map
+\ No newline at end of file
+diff --git a/dist/sandbox.js b/dist/sandbox.js
+index 7197b7d3f86daa528f4e57ee75c85af0c6266f4d..34f7a9b0d9e8b5f06d02d156c76bcc88c3e676cc 100644
+--- a/dist/sandbox.js
++++ b/dist/sandbox.js
+@@ -888,4 +888,3 @@ var DisposableSandbox = class extends Sandbox {
+ 
+ //#endregion
+ export { Sandbox };
+-//# sourceMappingURL=sandbox.js.map
+\ No newline at end of file
+diff --git a/dist/session.js b/dist/session.js
+index 5b264e607341b417ba6a17625ede6378de48a27a..01621fee3013661c9ea370384067943e6d986200 100644
+--- a/dist/session.js
++++ b/dist/session.js
+@@ -526,4 +526,3 @@ var Session = class Session {
+ 
+ //#endregion
+ export { Session };
+-//# sourceMappingURL=session.js.map
+\ No newline at end of file
+diff --git a/dist/snapshot.js b/dist/snapshot.js
+index 8d7dc7e8d8bca8d51c7ed3f056519653643eca3b..5c8225df6ce5891bce85ff7509ce3dbee694e1cb 100644
+--- a/dist/snapshot.js
++++ b/dist/snapshot.js
+@@ -208,4 +208,3 @@ var Snapshot = class Snapshot {
+ 
+ //#endregion
+ export { Snapshot };
+-//# sourceMappingURL=snapshot.js.map
+\ No newline at end of file
+diff --git a/dist/version.js b/dist/version.js
+index d3e47dc86ab59b60e6e3d9df5e095fb382f96710..f6a66d7d9bb983ee72cefdbd7d86a3cfae2955fd 100644
+--- a/dist/version.js
++++ b/dist/version.js
+@@ -3,4 +3,3 @@ const VERSION = "2.1.1";
+ 
+ //#endregion
+ export { VERSION };
+-//# sourceMappingURL=version.js.map
