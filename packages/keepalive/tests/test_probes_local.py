@@ -138,7 +138,7 @@ def test_execute_returncode_nonzero_no_wandb_fails(patched: dict[str, Any], mock
     bad = _FakeProc(returncode=2)
     patched["subprocess"].Popen.side_effect = lambda cmd, **kw: bad
 
-    ex = LocalExecutor(Settings(), repo_root=tmp_path)
+    ex = LocalExecutor(Settings(metrics_poll_timeout_s=0.0), repo_root=tmp_path, sleep_fn=lambda s: None)
     result = ex.execute(_spec(), _ctx(), steps=5)
     assert result.state == ProbeState.FAILED
 

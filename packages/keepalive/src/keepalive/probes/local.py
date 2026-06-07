@@ -3,7 +3,9 @@ from __future__ import annotations
 import contextlib
 import os
 import subprocess
+import time
 from pathlib import Path
+from typing import Any
 
 from ..config import Settings
 from ..types import ProbeResult, ProbeSpec, ProbeState, RunContext
@@ -12,9 +14,10 @@ from .sandbox import _probe_env
 
 
 class LocalExecutor:
-    def __init__(self, settings: Settings, repo_root: Path | str | None = None) -> None:
+    def __init__(self, settings: Settings, repo_root: Path | str | None = None, sleep_fn: Any | None = None) -> None:
         self._settings = settings
         self._repo_root = Path(repo_root) if repo_root is not None else Path.cwd()
+        self._sleep_fn = sleep_fn or time.sleep
         self._procs: dict[str, subprocess.Popen[str]] = {}
 
     def execute(self, spec: ProbeSpec, ctx: RunContext, *, steps: int) -> ProbeResult:
@@ -92,20 +95,18 @@ class LocalExecutor:
         returncode: int | None,
         stderr_tail: str,
     ) -> ProbeResult:
-        wandb_run_id: str | None = None
-        final_loss = None
-        history: list = []
-        try:
-            import wandb
-
-            api = wandb.Api()
-            wandb_run_id = judge.find_probe_run(api, ctx.entity, ctx.project, f"watchdog-{ctx.run_id}", spec.id)
-            if wandb_run_id is not None:
-                final_loss, history = judge.fetch_probe_metrics(
-                    f"{ctx.entity}/{ctx.project}/{wandb_run_id}", api=api, loss_key=ctx.loss_key
-                )
-        except Exception:
-            pass
+        # W&B history ingestion lags a finished run; poll only when the probe itself succeeded.
+        timeout_s = self._settings.metrics_poll_timeout_s if error is None else 0.0
+        wandb_run_id, final_loss, history = judge.collect_probe_metrics(
+            ctx.entity,
+            ctx.project,
+            f"watchdog-{ctx.run_id}",
+            spec.id,
+            loss_key=ctx.loss_key,
+            poll_interval_s=self._settings.metrics_poll_interval_s,
+            timeout_s=timeout_s,
+            sleep_fn=self._sleep_fn,
+        )
 
         succeeded = (returncode == 0 or wandb_run_id is not None) and error != "probe run timed out"
         if succeeded and error is None:

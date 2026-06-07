@@ -29,6 +29,8 @@ environment with `Settings.from_env()`. The table below mirrors the defaults exa
 | `KEEPALIVE_MAX_PROBES` | `max_probes` | `3` | Max parallel probes (= max fix hypotheses). |
 | `KEEPALIVE_PROBE_BRANCH_TIMEOUT` | `probe_branch_timeout_s` | `600.0` | Max wait for a Cursor agent to push its branch. |
 | `KEEPALIVE_PROBE_RUN_TIMEOUT` | `probe_run_timeout_s` | `900.0` | Max wall-clock for a single probe run. |
+| `KEEPALIVE_METRICS_POLL_INTERVAL` | `metrics_poll_interval_s` | `10.0` | Seconds between W&B probe-metric lookups (history ingestion lags). |
+| `KEEPALIVE_METRICS_POLL_TIMEOUT` | `metrics_poll_timeout_s` | `120.0` | Max wait for a probe's run + loss to appear in W&B. |
 | `KEEPALIVE_WEAVE_PROJECT` | `weave_project` | `keepalive` | Weave project name for tracing. |
 | `KEEPALIVE_LOSS_KEY` | `loss_key` | `loss` | Metric key treated as loss. |
 

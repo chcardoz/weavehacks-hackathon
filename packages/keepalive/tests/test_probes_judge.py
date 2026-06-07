@@ -136,3 +136,87 @@ def test_find_probe_run_none_on_exception() -> None:
 def test_find_probe_run_none_when_empty() -> None:
     api = _RunsApi([])
     assert judge.find_probe_run(api, "ent", "proj", "grp", "name") is None
+
+
+class _PollApi:
+    def __init__(self, found: bool, rows: list[dict[str, Any]], summary: dict[str, Any]) -> None:
+        self._found = found
+        self._run = _FakeRun(rows, summary)
+
+    def runs(self, path: str, filters: dict[str, Any] | None = None) -> Any:
+        return [_Run("wrun-1")] if self._found else []
+
+    def run(self, run_path: str) -> Any:
+        return self._run
+
+
+def test_collect_probe_metrics_retries_until_ingested() -> None:
+    # attempt 0: run not yet visible; attempt 1: run found but history empty;
+    # attempt 2: history ingested -> done. Fresh api per attempt.
+    apis = [
+        _PollApi(found=False, rows=[], summary={}),
+        _PollApi(found=True, rows=[], summary={}),
+        _PollApi(found=True, rows=[{"_step": 0, "loss": 0.7}], summary={"loss": 0.7}),
+    ]
+    calls = {"n": 0}
+    sleeps: list[float] = []
+
+    def factory() -> Any:
+        api = apis[calls["n"]]
+        calls["n"] += 1
+        return api
+
+    run_id, final, history = judge.collect_probe_metrics(
+        "ent",
+        "proj",
+        "grp",
+        "name",
+        poll_interval_s=5.0,
+        timeout_s=600.0,
+        sleep_fn=sleeps.append,
+        api_factory=factory,
+    )
+    assert run_id == "wrun-1"
+    assert final == 0.7
+    assert len(history) == 1
+    assert calls["n"] == 3
+    assert sleeps == [5.0, 5.0]
+
+
+def test_collect_probe_metrics_timeout_returns_partial() -> None:
+    api = _PollApi(found=True, rows=[{"_step": 0, "acc": 0.5}], summary={})
+    run_id, final, history = judge.collect_probe_metrics(
+        "ent",
+        "proj",
+        "grp",
+        "name",
+        timeout_s=0.0,
+        sleep_fn=lambda s: None,
+        api_factory=lambda: api,
+    )
+    assert run_id == "wrun-1"
+    assert final is None
+    assert len(history) == 1
+
+
+def test_collect_probe_metrics_swallows_api_errors_and_retries() -> None:
+    calls = {"n": 0}
+
+    def factory() -> Any:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("network down")
+        return _PollApi(found=True, rows=[{"_step": 0, "loss": 1.0}], summary={"loss": 1.0})
+
+    run_id, final, _ = judge.collect_probe_metrics(
+        "ent",
+        "proj",
+        "grp",
+        "name",
+        timeout_s=600.0,
+        sleep_fn=lambda s: None,
+        api_factory=factory,
+    )
+    assert run_id == "wrun-1"
+    assert final == 1.0
+    assert calls["n"] == 2

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import shlex
+import time
 from typing import Any
 
 from ..config import Settings
@@ -39,9 +40,10 @@ class _Session:
 
 
 class SandboxExecutor:
-    def __init__(self, settings: Settings, session_factory: Any | None = None) -> None:
+    def __init__(self, settings: Settings, session_factory: Any | None = None, sleep_fn: Any | None = None) -> None:
         self._settings = settings
         self._session_factory = session_factory
+        self._sleep_fn = sleep_fn or time.sleep
         self._sessions: dict[str, Any] = {}
 
     def _open_session(self) -> Any:
@@ -102,23 +104,20 @@ class SandboxExecutor:
         return self._collect_result(spec, ctx, error)
 
     def _collect_result(self, spec: ProbeSpec, ctx: RunContext, error: str | None) -> ProbeResult:
-        wandb_run_id: str | None = None
-        final_loss = None
-        history: list = []
-        try:
-            import wandb
+        # W&B history ingestion lags a finished run; poll only when the probe itself succeeded.
+        timeout_s = self._settings.metrics_poll_timeout_s if error is None else 0.0
+        wandb_run_id, final_loss, history = judge.collect_probe_metrics(
+            ctx.entity,
+            ctx.project,
+            f"watchdog-{ctx.run_id}",
+            spec.id,
+            loss_key=ctx.loss_key,
+            poll_interval_s=self._settings.metrics_poll_interval_s,
+            timeout_s=timeout_s,
+            sleep_fn=self._sleep_fn,
+        )
 
-            api = wandb.Api()
-            wandb_run_id = judge.find_probe_run(api, ctx.entity, ctx.project, f"watchdog-{ctx.run_id}", spec.id)
-            if wandb_run_id is not None:
-                final_loss, history = judge.fetch_probe_metrics(
-                    f"{ctx.entity}/{ctx.project}/{wandb_run_id}", api=api, loss_key=ctx.loss_key
-                )
-        except Exception as exc:
-            if error is None:
-                error = f"metric fetch failed: {exc}"
-
-        if error is None and wandb_run_id is not None:
+        if error is None and wandb_run_id is not None and final_loss is not None:
             spec.state = ProbeState.FINISHED
             return ProbeResult(
                 spec=spec,
@@ -127,6 +126,12 @@ class SandboxExecutor:
                 final_loss=final_loss,
                 state=ProbeState.FINISHED,
             )
+        if error is None:
+            error = (
+                "probe produced no wandb run"
+                if wandb_run_id is None
+                else f"no '{ctx.loss_key}' metric in wandb after {timeout_s:.0f}s"
+            )
         spec.state = ProbeState.FAILED
         return ProbeResult(
             spec=spec,
@@ -134,7 +139,7 @@ class SandboxExecutor:
             history=history,
             final_loss=final_loss,
             state=ProbeState.FAILED,
-            error=error or "probe produced no wandb run",
+            error=error,
         )
 
     def kill(self, spec: ProbeSpec) -> None:

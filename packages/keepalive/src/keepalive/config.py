@@ -44,6 +44,8 @@ class Settings:
     max_probes: int = 3
     probe_branch_timeout_s: float = 600.0
     probe_run_timeout_s: float = 900.0
+    metrics_poll_interval_s: float = 10.0
+    metrics_poll_timeout_s: float = 120.0
     weave_project: str = "keepalive"
     loss_key: str = "loss"
 
@@ -69,6 +71,8 @@ class Settings:
             max_probes=_env_int("KEEPALIVE_MAX_PROBES", cls.max_probes),
             probe_branch_timeout_s=_env_float("KEEPALIVE_PROBE_BRANCH_TIMEOUT", cls.probe_branch_timeout_s),
             probe_run_timeout_s=_env_float("KEEPALIVE_PROBE_RUN_TIMEOUT", cls.probe_run_timeout_s),
+            metrics_poll_interval_s=_env_float("KEEPALIVE_METRICS_POLL_INTERVAL", cls.metrics_poll_interval_s),
+            metrics_poll_timeout_s=_env_float("KEEPALIVE_METRICS_POLL_TIMEOUT", cls.metrics_poll_timeout_s),
             weave_project=_env("KEEPALIVE_WEAVE_PROJECT", cls.weave_project),
             loss_key=_env("KEEPALIVE_LOSS_KEY", cls.loss_key),
         )

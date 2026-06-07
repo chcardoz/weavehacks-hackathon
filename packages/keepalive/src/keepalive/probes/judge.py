@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import time
+from collections.abc import Callable
 from typing import Any
 
 from ..types import MetricSnapshot, ProbeResult, ProbeState
@@ -56,6 +58,49 @@ def find_probe_run(api: Any, entity: str, project: str, group: str, name: str) -
     except Exception:
         return None
     return None
+
+
+def _default_api_factory() -> Any:
+    import wandb
+
+    return wandb.Api()
+
+
+def collect_probe_metrics(
+    entity: str,
+    project: str,
+    group: str,
+    name: str,
+    loss_key: str = "loss",
+    *,
+    poll_interval_s: float = 10.0,
+    timeout_s: float = 120.0,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    api_factory: Callable[[], Any] = _default_api_factory,
+) -> tuple[str | None, float | None, list[MetricSnapshot]]:
+    """Find a probe run and its metrics, retrying while W&B history ingestion catches up.
+
+    The public API lags seconds to minutes behind a finished run, and the Run object
+    caches — so each attempt builds a fresh Api(). Returns as soon as the run is found
+    AND a final loss is available; on timeout returns the best partial result.
+    """
+    deadline = time.monotonic() + timeout_s
+    run_id: str | None = None
+    final_loss: float | None = None
+    history: list[MetricSnapshot] = []
+    while True:
+        try:
+            api = api_factory()
+            run_id = find_probe_run(api, entity, project, group, name) or run_id
+            if run_id is not None:
+                final_loss, history = fetch_probe_metrics(f"{entity}/{project}/{run_id}", api=api, loss_key=loss_key)
+        except Exception:
+            pass
+        if run_id is not None and final_loss is not None:
+            return run_id, final_loss, history
+        if time.monotonic() >= deadline:
+            return run_id, final_loss, history
+        sleep_fn(poll_interval_s)
 
 
 def pick_winner(results: list[ProbeResult], loss_key: str = "loss") -> ProbeResult | None:
