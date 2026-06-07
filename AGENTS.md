@@ -53,6 +53,15 @@ Redis on the client: all CUT in the June 7 pivot. Don't resurrect them.)
   - DB: Neon Postgres via drizzle, schema in `src/db/schema.ts`, pushed with
     `pnpm db:push` (no migrations; hackathon). Repo-level `project` → `run` →
     `incident` → `agent`, plus `event` feed, `memory`, `command`.
+  - **Redis (sponsor — both pieces optional, degrade gracefully when env unset)**:
+    semantic incident memory (`src/lib/redis.ts` singleton + `src/lib/memory/
+    semantic.ts`: HNSW/COSINE index `idx:memory`, embeddings via AI Gateway
+    `openai/text-embedding-3-small` — W&B Inference has NO embeddings). Hypothesis
+    agent's `searchIncidentMemory` is semantic-first → ILIKE fallback;
+    `finalize` dual-writes (Postgres = UI truth, Redis = search index);
+    `GET /api/incidents/{id}/similar` powers the similar-incidents card.
+    LangCache (`src/lib/ai/semantic-cache.ts`) semantically caches monitor
+    verdicts — never caches the confidence-1 fallback, 2s timeout.
 - **packages/keepalive** (pip, uv workspace) — THIN client: hooks `run.log()`, detectors
   (nan/divergence/stall + stderr OOM/exception scan), fire-and-forget event reporter
   (`/api/v1/events`), demo FaultInjector + command poller, CLI (`keepalive login`,
@@ -85,8 +94,10 @@ type annotations — don't run it blind.
 library URL), `GITHUB_CLIENT_ID/SECRET` (OAuth App, callback
 `/api/auth/callback/github`), `GITHUB_WEBHOOK_SECRET`, `AI_GATEWAY_API_KEY` (or Vercel
 OIDC), `WANDB_API_KEY` + `WANDB_PROJECT` (Weave traces + W&B Inference), `RESEND_API_KEY`
-(optional). Users set their own wandb key in /settings (used to launch their sandbox
-training); each project mints a raw `trainingApiKey` at creation.
+(optional), `REDIS_URL` (optional — Redis Cloud via Vercel Marketplace "Redis for
+Vercel"; free 30MB tier includes vector search), `LANGCACHE_SERVER_URL/CACHE_ID/API_KEY`
+(optional — LangCache preview). Users set their own wandb key in /settings (used to
+launch their sandbox training); each project mints a raw `trainingApiKey` at creation.
 
 ## Critical gotchas
 
@@ -104,6 +115,11 @@ training); each project mints a raw `trainingApiKey` at creation.
   squash-merge fires both `pull_request` and `push` — we key off `push` only.
 - wandb model IDs and W&B Inference slugs drift — verify via
   `GET https://api.inference.wandb.ai/v1/models` before the demo.
+- node-redis is v6 (not v5): schema enums are `SCHEMA_FIELD_TYPE`/
+  `SCHEMA_VECTOR_FIELD_ALGORITHM`, `DIALECT` is a number. LangCache's
+  `SearchStrategy` imports from `@redis-ai/langcache/models`, not the root.
+  `searchMemorySemantic` returns null (≠ []) when Redis/embeddings unavailable —
+  callers MUST treat null as "fall back", [] as "no hits".
 - Weave + separate processes (sandboxes, workflow steps): each must init its own
   tracing or traces are silently lost.
 
@@ -115,6 +131,7 @@ training); each project mints a raw `trainingApiKey` at creation.
   coding agents → PRs with reports land on the GitHub repo → Weave trace tree.
 - Judged on: utility, technical demo, creativity, presentation, **multi-agent harness
   sophistication**. Sponsors used: W&B (Weave + Sandboxes + Inference), OpenAI (GPT-5.4
-  via AI Gateway), Vercel (AI SDK, Workflows, Sandbox, AI Gateway).
+  via AI Gateway), Vercel (AI SDK, Workflows, Sandbox, AI Gateway), Redis (vector
+  search as agent memory + LangCache).
 - Demo pacing: monitoring debounce is 20s; `command` table fault injection works on any
   live run with `demo_mode=True`.

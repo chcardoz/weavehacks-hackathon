@@ -23,6 +23,7 @@ import {
   type Incident,
   incidentStatusTone,
 } from "@/lib/observability-types"
+import { SimilarIncidentsCard } from "./similar-incidents-card"
 
 function fmtDateTime(value: string | null): string {
   if (!value) return "—"
@@ -91,6 +92,7 @@ function IncidentDetail({
 }) {
   return (
     <div className="space-y-4 bg-muted/20 p-4">
+      <SimilarIncidentsCard incidentId={incident.id} />
       {incident.reasoning && (
         <div className="space-y-1">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

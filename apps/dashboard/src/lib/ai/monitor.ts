@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { resolveModel } from "./models";
 import { buildMonitorSystemPrompt } from "./prompts";
+import { searchSemanticCache, storeSemanticCache } from "./semantic-cache";
 
 const MONITOR_TIMEOUT_MS = 15_000;
 
@@ -25,6 +26,22 @@ const monitorSchema = z.object({
 });
 
 export type MonitorVerdict = z.infer<typeof monitorSchema>;
+
+/**
+ * Parses a cached verdict string and validates it against `monitorSchema`.
+ * Returns the verdict on success, or null if the payload is malformed or fails
+ * validation (so the caller falls through to the model).
+ */
+export function parseCachedVerdict(raw: string): MonitorVerdict | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const result = monitorSchema.safeParse(parsed);
+  return result.success ? result.data : null;
+}
 
 export interface MetricsWindowEntry {
   step: number;
@@ -64,6 +81,16 @@ export async function scoreMetrics(
       ...(incidentContext ? { incidentContext } : {}),
     };
 
+    // Key the cache on the watch criteria + metrics so different monitoring
+    // prompts never share verdicts.
+    const cachePrompt = monitoringPrompt + "\n" + JSON.stringify(promptBody);
+
+    const cachedRaw = await searchSemanticCache(cachePrompt);
+    if (cachedRaw !== null) {
+      const cached = parseCachedVerdict(cachedRaw);
+      if (cached) return cached;
+    }
+
     const { output } = await generateText({
       model: resolveModel(monitorModel),
       system: buildMonitorSystemPrompt(monitoringPrompt),
@@ -76,6 +103,9 @@ export async function scoreMetrics(
         metadata: { projectId, runId },
       },
     });
+
+    // Only cache real model output — never the catch-branch fallback verdict.
+    await storeSemanticCache(cachePrompt, JSON.stringify(output));
 
     return output;
   } catch (err) {

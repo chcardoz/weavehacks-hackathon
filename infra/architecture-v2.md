@@ -221,7 +221,9 @@ with keepalive.watchdog(
 1. step `loadContext`: project, run, incident, last N memory rows, recent events.
 2. step `generateHypotheses`: hypothesis agent — strong model via gateway
    (`openai/gpt-5.4`), `ToolLoopAgent`, ONLY tool = `searchIncidentMemory`
-   (queries `memory` table). Produces ≤ maxAgents distinct hypotheses + a diagnosis
+   (semantic-first: Redis vector KNN via `src/lib/memory/semantic.ts`, falling
+   back to SQL ILIKE on the `memory` table when Redis/embeddings are
+   unavailable). Produces ≤ maxAgents distinct hypotheses + a diagnosis
    summary. NO code tools.
 3. `Promise.all(hypotheses.map(runCodingAgent))` — each step:
    - create Vercel Sandbox (`@vercel/sandbox`), clone repo at `incident` run's
@@ -231,8 +233,9 @@ with keepalive.watchdog(
      implemented over sandbox.runCommand/readFileToBuffer/writeFiles.
    - commit + push branch; open PR via Octokit with the agent's full markdown report;
      update `agent` row + emit events at each transition.
-4. step `finalize`: write `memory` row, mark incident resolved/failed, set
-   project/run status, optional Resend email report.
+4. step `finalize`: write `memory` row (dual-write: Postgres = source of truth
+   for the UI, Redis = semantic search index via `storeMemorySemantic`), mark
+   incident resolved/failed, set project/run status, optional Resend email report.
 
 GitHub PR bodies are the human-facing report. The webhook ignores non-default
 branches, so agent branches never trigger training.
@@ -284,7 +287,33 @@ CPU-only on the serverless tier (GPU = roadmap/CKS); demo trains a tiny model.
 Env (dashboard): `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`,
 `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_WEBHOOK_SECRET`,
 `AI_GATEWAY_API_KEY` (or Vercel OIDC), `WANDB_API_KEY` (ours: Weave traces + default
-Inference), `WANDB_PROJECT` (e.g. `team/keepalive`), `RESEND_API_KEY` (optional).
+Inference), `WANDB_PROJECT` (e.g. `team/keepalive`), `RESEND_API_KEY` (optional),
+`REDIS_URL` (optional — Redis Cloud via the Vercel Marketplace "Redis for Vercel"
+integration; enables semantic incident memory), `LANGCACHE_SERVER_URL` +
+`LANGCACHE_CACHE_ID` + `LANGCACHE_API_KEY` (optional — Redis LangCache semantic
+cache for monitor verdicts).
+
+## Redis (sponsor: semantic memory + LangCache)
+
+Two Redis AI capabilities, both strictly optional (every path degrades
+gracefully when env is unset — the demo can never break on missing Redis):
+
+- **Semantic incident memory** — `src/lib/redis.ts` (globalThis singleton; Redis
+  Cloud free tier caps at 30 connections) + `src/lib/memory/semantic.ts`.
+  Index `idx:memory` (HASH prefix `mem:`, HNSW/COSINE/FLOAT32/DIM 1536).
+  Embeddings: `embed({ model: "openai/text-embedding-3-small" })` via AI Gateway
+  (W&B Inference has NO embeddings endpoint). `storeMemorySemantic` never
+  throws; `searchMemorySemantic` returns `null` when unavailable → callers fall
+  back to ILIKE. Consumers: hypothesis agent tool, `finalize` dual-write, and
+  `GET /api/incidents/{id}/similar` (powers the "Similar past incidents" card
+  in the incidents UI; renders nothing when unavailable).
+- **LangCache** — `src/lib/ai/semantic-cache.ts` wraps `scoreMetrics`: semantic
+  cache keyed on `monitoringPrompt + "\n" + JSON.stringify(promptBody)`; only
+  real model verdicts are cached (never the confidence-1 fallback); 2s
+  `timeoutMs` so a slow cache can't stall ingest. SDK: `@redis-ai/langcache`
+  (note: `SearchStrategy` enum imports from `@redis-ai/langcache/models`, not
+  the package root). node-redis is v6: schema enums are `SCHEMA_FIELD_TYPE` /
+  `SCHEMA_VECTOR_FIELD_ALGORITHM`, `DIALECT` is a number.
 
 ## Weave tracing (TS side)
 

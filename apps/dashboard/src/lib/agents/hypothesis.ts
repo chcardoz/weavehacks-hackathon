@@ -9,6 +9,7 @@ import {
   HYPOTHESIS_MODEL,
   resolveModel,
 } from "@/lib/ai"
+import { searchMemorySemantic } from "@/lib/memory/semantic"
 
 export interface HypothesisInput {
   projectId: string
@@ -64,13 +65,22 @@ const hypothesisSchema = z.object({
 })
 
 /**
- * Drizzle-backed incident-memory search: ILIKE on summary/kind for this project,
- * most-recent first, top 5. Used as the hypothesis agent's only tool.
+ * Incident-memory search for this project, top 5. Semantic-first: queries the
+ * Redis semantic index, returning hits ranked by similarity score. When Redis /
+ * embeddings are unavailable (returns null), falls back to a drizzle ILIKE query
+ * on summary/kind, most-recent first. Used as the hypothesis agent's only tool.
  */
 async function searchProjectMemory(
   projectId: string,
   query: string,
 ): Promise<string> {
+  const hits = await searchMemorySemantic(projectId, query, 5)
+  if (hits !== null) {
+    if (hits.length === 0) return "No matching incident memory."
+    return JSON.stringify(hits)
+  }
+
+  // Fallback: Redis / embeddings unavailable → drizzle ILIKE.
   const pattern = `%${query}%`
   const matchClause = query.trim()
     ? or(ilike(memory.summary, pattern), ilike(memory.kind, pattern))
@@ -111,7 +121,7 @@ export async function generateHypotheses(
 
   const searchIncidentMemory = tool({
     description:
-      "Search this project's incident memory for prior failures matching a query (failure kind, symptom, or keyword). Returns the top matches with their summaries and resolutions.",
+      "Search this project's incident memory for prior failures matching a query (failure kind, symptom, or keyword). Returns the top matches with their summaries and resolutions, semantically ranked with a similarity score (0..1, higher = more similar) when available.",
     inputSchema: z.object({
       query: z
         .string()

@@ -20,6 +20,7 @@ import {
   type Hypothesis,
 } from "@/lib/agents/hypothesis"
 import { runCoder } from "@/lib/agents/coder"
+import { storeMemorySemantic } from "@/lib/memory/semantic"
 
 // --- serializable context passed between workflow steps (pass-by-value) ---
 
@@ -516,14 +517,25 @@ async function finalize(
         .join("\n")
     : "No PRs opened."
 
+  const memoryId = crypto.randomUUID()
   await db.insert(memoryTable).values({
-    id: crypto.randomUUID(),
+    id: memoryId,
     projectId: ctx.projectId,
     incidentId: ctx.incidentId,
     kind: ctx.incident.kind,
     summary,
     resolution,
     data: { results, diagnosis: ctx.diagnosis },
+  })
+
+  // Dual-write to Redis: Postgres is the source of truth for the UI, Redis is
+  // the semantic search index for the hypothesis agent. Never throws.
+  await storeMemorySemantic({
+    id: memoryId,
+    projectId: ctx.projectId,
+    kind: ctx.incident.kind,
+    summary,
+    resolution,
   })
 
   // Incident status.
