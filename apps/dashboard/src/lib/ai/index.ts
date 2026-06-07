@@ -22,4 +22,4 @@ export {
   type MetricsWindowEntry,
   type ScoreMetricsParams,
 } from "./monitor";
-export { registerWeaveTelemetry, flushTraces } from "./telemetry";
+export { initWeave, flushTraces } from "./telemetry";

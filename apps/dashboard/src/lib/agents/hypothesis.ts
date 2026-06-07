@@ -1,5 +1,6 @@
 import { Output, ToolLoopAgent, generateText, stepCountIs, tool } from "ai"
 import { and, desc, eq, ilike, or } from "drizzle-orm"
+import { op } from "weave"
 import { z } from "zod"
 
 import { db } from "@/lib/db"
@@ -107,7 +108,7 @@ async function searchProjectMemory(
  * followed by one structured generation producing a diagnosis + distinct
  * hypotheses (clamped to maxAgents). NO code tools.
  */
-export async function generateHypotheses(
+async function generateHypothesesImpl(
   input: HypothesisInput,
 ): Promise<HypothesisOutput> {
   const system = input.fixingPrompt ?? DEFAULT_FIXING_PROMPT
@@ -177,3 +178,12 @@ Produce a concise diagnosis and AT MOST ${input.maxAgents} DISTINCT, minimal-ris
   const hypotheses = output.hypotheses.slice(0, Math.max(1, input.maxAgents))
   return { diagnosis: output.diagnosis, hypotheses }
 }
+
+/**
+ * Weave-traced entry point. The op captures the failure context (incident,
+ * metrics, error events) and the produced diagnosis + hypotheses as one call on
+ * trace.wandb.ai. Calls through untraced when Weave is uninitialized.
+ */
+export const generateHypotheses = op(generateHypothesesImpl, {
+  name: "hypothesis.generate",
+})

@@ -1,4 +1,5 @@
 import { Output, generateText } from "ai";
+import { op } from "weave";
 import { z } from "zod";
 
 import { normalizeMonitorModel } from "./model-ids";
@@ -64,7 +65,7 @@ export interface ScoreMetricsParams {
  * prompt. NEVER throws — on any error (timeout, model, parse) it returns a safe
  * "healthy" verdict so the ingest path is never blocked.
  */
-export async function scoreMetrics(
+async function scoreMetricsImpl(
   params: ScoreMetricsParams,
 ): Promise<MonitorVerdict> {
   const {
@@ -118,3 +119,10 @@ export async function scoreMetrics(
     };
   }
 }
+
+/**
+ * Weave-traced entry point. The op captures the scoring inputs (metrics window,
+ * monitoring prompt, ids) and the resulting verdict as a call on trace.wandb.ai.
+ * When Weave is uninitialized it simply calls through (no tracing).
+ */
+export const scoreMetrics = op(scoreMetricsImpl, { name: "monitor.score" });

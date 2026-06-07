@@ -4,6 +4,9 @@ import { withWorkflow } from "workflow/next"
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // weave is a node-only package (fs/os/path/crypto/readline via cli-progress);
+  // keep it out of the webpack bundle so it's required at runtime instead.
+  serverExternalPackages: ["weave"],
 }
 
 const withMDX = createMDX()

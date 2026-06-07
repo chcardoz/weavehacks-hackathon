@@ -1,5 +1,6 @@
 import type { Sandbox } from "@vercel/sandbox"
 import { ToolLoopAgent, stepCountIs } from "ai"
+import { op } from "weave"
 
 import { CODER_MODEL, resolveModel } from "@/lib/ai"
 import { makeSandboxTools } from "./sandbox-tools"
@@ -68,9 +69,26 @@ export async function runCoder(params: RunCoderParams): Promise<RunCoderResult> 
     },
   })
 
-  const result = await agent.generate({
-    prompt: `Implement the assigned hypothesis now. Start by exploring the repo to find the relevant code.`,
-  })
+  // Trace only the serializable inputs (the assigned hypothesis + ids); the
+  // sandbox/agent/tools are captured via closure so Weave never tries to
+  // serialize them. The op records the agent's final PR-report summary.
+  const traced = op(
+    async (
+      _hypothesis: Hypothesis,
+      _diagnosis: string,
+      _incidentId: string,
+      _agentId: string,
+    ): Promise<RunCoderResult> => {
+      const result = await agent.generate({
+        prompt: `Implement the assigned hypothesis now. Start by exploring the repo to find the relevant code.`,
+      })
+      return { summary: result.text, steps: result.steps.length }
+    },
+    {
+      name: "coder.run",
+      parameterNames: ["hypothesis", "diagnosis", "incidentId", "agentId"],
+    },
+  )
 
-  return { summary: result.text, steps: result.steps.length }
+  return traced(hypothesis, diagnosis, incidentId, agentId)
 }
