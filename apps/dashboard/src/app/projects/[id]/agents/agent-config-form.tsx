@@ -15,6 +15,10 @@ import {
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  MONITOR_MODEL_DEFAULT,
+  normalizeMonitorModel,
+} from "@/lib/ai/model-ids"
 
 const MONITOR_PROMPT_PLACEHOLDER =
   "Flag if val/loss diverges from train/loss, the loss goes NaN/Inf, grad_norm spikes, or training stalls (no loss improvement over many steps)."
@@ -22,11 +26,7 @@ const FIXING_PROMPT_PLACEHOLDER =
   "Prefer minimal, well-justified changes. Consider lowering the learning rate, adding gradient clipping, fixing data normalization, or guarding against NaNs."
 
 const MODELS = [
-  {
-    value: "wandb/microsoft/Phi-4-mini-instruct",
-    label: "Phi-4-mini · W&B Inference (fast/cheap)",
-  },
-  { value: "openai/gpt-5.4-mini", label: "GPT-5.4 mini · Gateway" },
+  { value: MONITOR_MODEL_DEFAULT, label: "GPT-5.4 mini · Gateway" },
   { value: "openai/gpt-5.4", label: "GPT-5.4 · Gateway" },
 ]
 
@@ -52,7 +52,9 @@ export function AgentConfigForm({
   const [fixingPrompt, setFixingPrompt] = useState(initial.fixingPrompt ?? "")
   const [threshold, setThreshold] = useState(initial.confidenceThreshold)
   const [maxAgents, setMaxAgents] = useState(initial.maxAgents)
-  const [monitorModel, setMonitorModel] = useState(initial.monitorModel)
+  const [monitorModel, setMonitorModel] = useState(
+    normalizeMonitorModel(initial.monitorModel),
+  )
   const [saving, setSaving] = useState(false)
 
   async function onSave() {

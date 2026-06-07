@@ -460,6 +460,13 @@ function PrCard({ branch, pr }: { branch: string; pr: string }) {
 }
 
 function SponsorStackSlide() {
+  const sponsors = [
+    { name: "Weights & Biases", logo: "/slides/logo-wandb.svg" },
+    { name: "OpenAI", logo: "/slides/logo-openai.svg" },
+    { name: "Vercel", logo: "/slides/logo-vercel.svg" },
+    { name: "Redis", logo: "/slides/logo-redis.svg" },
+  ]
+
   const rows = [
     {
       part: "training launch",
@@ -468,8 +475,8 @@ function SponsorStackSlide() {
     },
     {
       part: "monitoring agent",
-      tech: "W&B Inference + AI SDK",
-      job: "Phi-4-mini scores live metrics against the user's plain-English prompt.",
+      tech: "AI Gateway + AI SDK",
+      job: "GPT-5.4 mini scores live metrics against the user's plain-English prompt.",
     },
     {
       part: "traceability",
@@ -530,6 +537,21 @@ function SponsorStackSlide() {
                 </p>
               </div>
               <p className="text-sm leading-6 text-neutral-300">{row.job}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-x-14 gap-y-5 border-t border-neutral-700 pt-7">
+          {sponsors.map((sponsor) => (
+            <div key={sponsor.name} className="flex items-center gap-3">
+              <img
+                src={sponsor.logo}
+                alt={`${sponsor.name} logo`}
+                className="size-9"
+              />
+              <span className="text-xl font-semibold tracking-tight">
+                {sponsor.name}
+              </span>
             </div>
           ))}
         </div>

@@ -9,6 +9,7 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core"
+import { MONITOR_MODEL_DEFAULT } from "../lib/ai/model-ids"
 
 // --- Better Auth tables (Better Auth-managed; do not rename columns) ---
 
@@ -134,9 +135,7 @@ export const project = pgTable(
     fixingPrompt: text("fixing_prompt"), // hypothesis-agent prompt override
     confidenceThreshold: real("confidence_threshold").default(0.6).notNull(),
     maxAgents: integer("max_agents").default(3).notNull(),
-    monitorModel: text("monitor_model")
-      .default("wandb/microsoft/Phi-4-mini-instruct")
-      .notNull(),
+    monitorModel: text("monitor_model").default(MONITOR_MODEL_DEFAULT).notNull(),
     trainingApiKey: text("training_api_key"), // raw ka_live_ key for sandbox runs
     status: text("status").default("idle").notNull(), // idle|training|incident|fixing|recovered|stopped
     createdAt: timestamp("created_at").defaultNow().notNull(),

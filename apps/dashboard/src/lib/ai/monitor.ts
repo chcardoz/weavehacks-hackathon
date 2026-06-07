@@ -1,6 +1,7 @@
 import { Output, generateText } from "ai";
 import { z } from "zod";
 
+import { normalizeMonitorModel } from "./model-ids";
 import { resolveModel } from "./models";
 import { buildMonitorSystemPrompt } from "./prompts";
 import { searchSemanticCache, storeSemanticCache } from "./semantic-cache";
@@ -92,7 +93,7 @@ export async function scoreMetrics(
     }
 
     const { output } = await generateText({
-      model: resolveModel(monitorModel),
+      model: resolveModel(normalizeMonitorModel(monitorModel)),
       system: buildMonitorSystemPrompt(monitoringPrompt),
       prompt: JSON.stringify(promptBody),
       output: Output.object({ schema: monitorSchema }),

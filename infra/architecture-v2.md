@@ -34,7 +34,7 @@ Telegram, Twilio, Cursor SDK, Railway, FastAPI, Mintlify: all GONE.
    keepalive + wandb into the training script).
 5. Merge to main → webhook → `trainingLaunch` workflow → training runs in a
    **W&B Sandbox**, visible in wandb, reporting metrics to us.
-6. **Monitoring agent** (cheap model, W&B Inference) scores each metrics window
+6. **Monitoring agent** (cheap model on AI Gateway) scores each metrics window
    against the project's plain-English monitoring prompt → `{confidence, reasoning}`.
 7. `confidence < threshold` (or hard client-side failure) → incident → `fixingPipeline`:
    **hypothesis agent** (no code tools, searches incident memory) → fans out ≤ maxAgents
@@ -65,7 +65,7 @@ project            — repo-level entity (Vercel-like), created from the dashboa
   fixingPrompt     text               -- hypothesis-agent prompt override
   confidenceThreshold real not null default 0.6
   maxAgents        integer not null default 3
-  monitorModel     text not null default 'wandb/microsoft/Phi-4-mini-instruct'
+  monitorModel     text not null default 'openai/gpt-5.4-mini'
   trainingApiKey   text               -- raw ka_live_ key minted for sandbox runs (hackathon-ok)
   status           text not null default 'idle'   -- idle|training|incident|fixing|recovered|stopped
   createdAt/updatedAt timestamps
@@ -209,9 +209,10 @@ with keepalive.watchdog(
 
 - AI SDK v6: `generateText` + `Output.object({schema})` →
   `{confidence: 0..1, reasoning: string, signals: string[]}`.
-- Model: project.monitorModel. Prefix routing: `wandb/<id>` → W&B Inference via
-  `createOpenAICompatible({baseURL: 'https://api.inference.wandb.ai/v1', apiKey: WANDB_API_KEY})`;
-  anything else (`openai/gpt-5.4-mini` etc.) → Vercel AI Gateway plain string.
+- Model: project.monitorModel. Default `openai/gpt-5.4-mini` via Vercel AI Gateway
+  plain string. Legacy `wandb/<id>` monitor rows are normalized to the default because
+  W&B Inference does not support the structured response format used by
+  `Output.object`.
 - System prompt = built-in guardrails + the project's plain-English monitoring prompt.
 - Runs inline in the ingest route (1–3s); NOT a workflow.
 
@@ -279,8 +280,8 @@ CPU-only on the serverless tier (GPU = roadmap/CKS); demo trains a tiny model.
 
 | Use | Model | Route |
 |---|---|---|
-| Monitoring | `wandb/microsoft/Phi-4-mini-instruct` (default) | W&B Inference direct |
-| Monitoring alt | `openai/gpt-5.4-mini` | AI Gateway |
+| Monitoring | `openai/gpt-5.4-mini` (default) | Vercel AI Gateway |
+| Monitoring strong alt | `openai/gpt-5.4` | AI Gateway |
 | Hypothesis | `openai/gpt-5.4` | AI Gateway |
 | Coding agents | `openai/gpt-5.4` | AI Gateway |
 

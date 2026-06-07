@@ -1,11 +1,13 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
+import { MONITOR_MODEL_DEFAULT } from "./model-ids";
 
-export const MONITOR_MODEL_DEFAULT = "wandb/microsoft/Phi-4-mini-instruct";
+export { MONITOR_MODEL_DEFAULT } from "./model-ids";
+
 export const HYPOTHESIS_MODEL = "openai/gpt-5.4";
 export const CODER_MODEL = "openai/gpt-5.4";
 
-const WANDB_FALLBACK = "openai/gpt-5.4-mini";
+const WANDB_FALLBACK = MONITOR_MODEL_DEFAULT;
 
 /**
  * Resolves a model id to an AI SDK model.
