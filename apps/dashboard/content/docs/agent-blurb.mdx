@@ -19,8 +19,10 @@ You are wiring the `keepalive` training watchdog into this repository. keepalive
 W&B metrics during training and, on failure or drift, opens PRs with fixes. Make these
 changes:
 
-1. Dependencies. Add `keepalive` and `wandb` to requirements.txt (or pyproject
-   dependencies). Do not pin to old versions.
+1. Dependencies. Add `keepalive-club` and `wandb` to requirements.txt (or pyproject
+   dependencies). Do not pin to old versions. The distribution is named
+   `keepalive-club` on PyPI but is imported as `keepalive` — do NOT add a
+   dependency on the unrelated `keepalive` PyPI package.
 
 2. Initialize W&B. Near the top of the training entrypoint, create a run:
        import wandb

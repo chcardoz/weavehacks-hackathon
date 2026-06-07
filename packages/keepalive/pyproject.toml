@@ -1,5 +1,5 @@
 [project]
-name = "keepalive"
+name = "keepalive-club"
 version = "0.2.0"
 description = "Thin client watchdog for GPU training runs: detects failures and reports metrics/events to keepalive.club, which diagnoses and opens fix PRs."
 readme = "README.md"
@@ -35,3 +35,8 @@ Source = "https://github.com/keepalive-club/keepalive"
 [build-system]
 requires = ["uv_build>=0.5,<0.9"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# Distribution is `keepalive-club` (the bare name is squatted on PyPI by an
+# unrelated urllib package) but the import stays `import keepalive`.
+module-name = "keepalive"

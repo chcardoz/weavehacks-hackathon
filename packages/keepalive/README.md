@@ -9,8 +9,8 @@ diagnoses the failure and opens fix PRs on your repo — fully traced in W&B Wea
 ## Quickstart
 
 ```bash
-pip install keepalive
-keepalive login            # prompts for your ka_live_ key, stores ~/.config/keepalive/config.json
+pip install keepalive-club   # installs as `keepalive-club`, imports as `keepalive`
+keepalive login              # prompts for your ka_live_ key, stores ~/.config/keepalive/config.json
 ```
 
 Wrap your training loop:

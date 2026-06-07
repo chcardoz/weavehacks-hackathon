@@ -138,7 +138,7 @@ function OnboardingCard({ onNew }: { onNew: () => void }) {
                 1. Install + log in locally
               </span>
               <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 text-xs">
-                <code className="font-mono">{`pip install keepalive
+                <code className="font-mono">{`pip install keepalive-club
 keepalive login`}</code>
               </pre>
             </li>

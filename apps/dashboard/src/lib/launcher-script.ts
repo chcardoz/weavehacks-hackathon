@@ -33,7 +33,7 @@ try:
 set -e
 git clone https://x-access-token:{gh}@github.com/{repo}.git /work && cd /work
 git checkout {sha}
-pip install -r requirements.txt || pip install wandb keepalive
+pip install -r requirements.txt || pip install wandb keepalive-club
 {train_cmd}
 """
 

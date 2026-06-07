@@ -63,7 +63,7 @@ export default async function Home() {
         <p className="text-sm text-muted-foreground">Get started locally:</p>
         <pre className="overflow-x-auto rounded-lg border border-border bg-card p-4 text-sm">
           <code className="font-mono text-foreground">
-            pip install keepalive
+            pip install keepalive-club
           </code>
         </pre>
       </div>

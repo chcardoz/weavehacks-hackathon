@@ -10,10 +10,11 @@ package = false
 members = ["packages/*"]
 
 [tool.uv.sources]
-keepalive = { workspace = true }
+keepalive-club = { workspace = true }
 
 [dependency-groups]
 dev = [
+    "keepalive-club",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "pytest-mock>=3.14",
