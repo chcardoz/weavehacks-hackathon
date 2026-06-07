@@ -1,5 +1,11 @@
 # Observability contract — events, commands, and the dashboard data plane
 
+> **⚠️ Superseded (June 7 pivot):** `infra/architecture-v2.md` is now the binding
+> contract. The FastAPI relay (`apps/api`) is deleted — ingest lives at
+> `apps/dashboard` `POST /api/v1/events`, and the schema moved to v2 (repo-level
+> `project`, `incident`, `agent`, `memory`). This doc is kept for the event-shape
+> history only.
+
 How the dashboard's `/projects` pages get live data, and how demo fault-injection
 commands flow back to the library. Three parties code against this spec:
 
