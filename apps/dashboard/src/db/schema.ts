@@ -119,19 +119,19 @@ export const project = pgTable("project", {
   wandbUrl: text("wandb_url"),
   commitSha: text("commit_sha"),
   status: text("status")
-    .$defaultFn(() => "training")
+    .default("training")
     .notNull(),
   currentStep: integer("current_step"),
   latestLoss: doublePrecision("latest_loss"),
   lossHistory: jsonb("loss_history"),
-  demoMode: boolean("demo_mode").$defaultFn(() => false),
+  demoMode: boolean("demo_mode").default(false),
   apikeyId: text("apikey_id"),
   lastEventAt: timestamp("last_event_at"),
   createdAt: timestamp("created_at")
-    .$defaultFn(() => new Date())
+    .defaultNow()
     .notNull(),
   updatedAt: timestamp("updated_at")
-    .$defaultFn(() => new Date())
+    .defaultNow()
     .notNull(),
 })
 
@@ -145,7 +145,7 @@ export const incident = pgTable(
     kind: text("kind").notNull(),
     step: integer("step"),
     status: text("status")
-      .$defaultFn(() => "detected")
+      .default("detected")
       .notNull(),
     diagnosis: text("diagnosis"),
     humanReply: text("human_reply"),
@@ -154,10 +154,10 @@ export const incident = pgTable(
     winnerAgentId: text("winner_agent_id"),
     resolvedAt: timestamp("resolved_at"),
     createdAt: timestamp("created_at")
-      .$defaultFn(() => new Date())
+      .defaultNow()
       .notNull(),
     updatedAt: timestamp("updated_at")
-      .$defaultFn(() => new Date())
+      .defaultNow()
       .notNull(),
   },
   (table) => [index("incident_project_id_idx").on(table.projectId)],
@@ -175,17 +175,17 @@ export const agent = pgTable(
     cursorAgentId: text("cursor_agent_id"),
     branch: text("branch"),
     state: text("state")
-      .$defaultFn(() => "spawned")
+      .default("spawned")
       .notNull(),
     wandbRunId: text("wandb_run_id"),
     finalLoss: doublePrecision("final_loss"),
     lossHistory: jsonb("loss_history"),
     error: text("error"),
     createdAt: timestamp("created_at")
-      .$defaultFn(() => new Date())
+      .defaultNow()
       .notNull(),
     updatedAt: timestamp("updated_at")
-      .$defaultFn(() => new Date())
+      .defaultNow()
       .notNull(),
   },
   (table) => [
@@ -203,13 +203,13 @@ export const event = pgTable(
     agentId: text("agent_id"),
     source: text("source").notNull(),
     level: text("level")
-      .$defaultFn(() => "info")
+      .default("info")
       .notNull(),
     type: text("type").notNull(),
     message: text("message").notNull(),
     data: jsonb("data"),
     createdAt: timestamp("created_at")
-      .$defaultFn(() => new Date())
+      .defaultNow()
       .notNull(),
   },
   (table) => [
@@ -227,11 +227,11 @@ export const command = pgTable(
       .references(() => project.id, { onDelete: "cascade" }),
     type: text("type").notNull(),
     status: text("status")
-      .$defaultFn(() => "pending")
+      .default("pending")
       .notNull(),
     consumedAt: timestamp("consumed_at"),
     createdAt: timestamp("created_at")
-      .$defaultFn(() => new Date())
+      .defaultNow()
       .notNull(),
   },
   (table) => [
