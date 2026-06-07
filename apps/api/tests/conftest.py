@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import fakeredis.aioredis
 import httpx
 import pytest
+from fastapi import FastAPI
 
 from keepalive_api.config import ApiSettings
 from keepalive_api.main import create_app
@@ -36,7 +37,7 @@ async def build_client(
     fake_redis: fakeredis.aioredis.FakeRedis | None = None,
     telegram: object | None = None,
     openai: object | None = None,
-) -> AsyncIterator[tuple[httpx.AsyncClient, object]]:
+) -> AsyncIterator[tuple[httpx.AsyncClient, FastAPI]]:
     """Create the app, run its lifespan, then swap in fakes on app.state.
 
     Yields (client, app) so tests can inspect/mutate app.state.
@@ -105,6 +106,80 @@ class FakeTelegram:
 
     def calls_to(self, path: str) -> list[dict[str, object]]:
         return [payload for p, payload in self.calls if p == path]
+
+
+class FakeConnection:
+    """Records execute/fetch/fetchrow calls and returns canned rows.
+
+    `fetchrow_rows` / `fetch_rows` are lists of (sql_substring, row-or-rows) rules,
+    matched by the first substring found in the query; the default is None / [].
+    """
+
+    def __init__(
+        self,
+        *,
+        fetchrow_rules: list[tuple[str, object]] | None = None,
+        fetch_rules: list[tuple[str, object]] | None = None,
+    ) -> None:
+        self.execute_calls: list[tuple[str, tuple[object, ...]]] = []
+        self.fetch_calls: list[tuple[str, tuple[object, ...]]] = []
+        self.fetchrow_calls: list[tuple[str, tuple[object, ...]]] = []
+        self._fetchrow_rules = fetchrow_rules or []
+        self._fetch_rules = fetch_rules or []
+
+    async def execute(self, sql: str, *args: object) -> str:
+        self.execute_calls.append((sql, args))
+        return "OK"
+
+    async def fetch(self, sql: str, *args: object) -> object:
+        self.fetch_calls.append((sql, args))
+        for needle, rows in self._fetch_rules:
+            if needle in sql:
+                return rows
+        return []
+
+    async def fetchrow(self, sql: str, *args: object) -> object:
+        self.fetchrow_calls.append((sql, args))
+        for needle, row in self._fetchrow_rules:
+            if needle in sql:
+                return row
+        return None
+
+    def executes_matching(self, needle: str) -> list[tuple[str, tuple[object, ...]]]:
+        return [(sql, args) for sql, args in self.execute_calls if needle in sql]
+
+
+class FakePgPool:
+    """Stands in for an asyncpg.Pool. acquire() yields a shared FakeConnection."""
+
+    def __init__(self, conn: FakeConnection | None = None) -> None:
+        self.conn = conn or FakeConnection()
+
+    def acquire(self) -> _FakeAcquire:
+        return _FakeAcquire(self.conn)
+
+    async def execute(self, sql: str, *args: object) -> str:
+        return await self.conn.execute(sql, *args)
+
+    async def fetch(self, sql: str, *args: object) -> object:
+        return await self.conn.fetch(sql, *args)
+
+    async def fetchrow(self, sql: str, *args: object) -> object:
+        return await self.conn.fetchrow(sql, *args)
+
+    async def close(self) -> None:
+        return None
+
+
+class _FakeAcquire:
+    def __init__(self, conn: FakeConnection) -> None:
+        self._conn = conn
+
+    async def __aenter__(self) -> FakeConnection:
+        return self._conn
+
+    async def __aexit__(self, *exc: object) -> bool:
+        return False
 
 
 class FakeOpenAI:

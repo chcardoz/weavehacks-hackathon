@@ -55,6 +55,9 @@ async def chat_completions(request: Request, key_id: str = Depends(require_api_k
     resp = await openai.post("/chat/completions", json=payload)
     if resp.is_error:
         logger.warning("openai upstream error (%s): %s", resp.status_code, resp.text[:500])
+    # NOTE: relay self-logging is intentionally SKIPPED here. The LLM proxy has no
+    # project_id in context (no incident/project hint in the chat-completions body),
+    # and the contract allows relay self-logs to be best-effort, so we omit the event.
     return Response(
         content=resp.content,
         status_code=resp.status_code,

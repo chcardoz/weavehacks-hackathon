@@ -6,7 +6,8 @@ import secrets
 from fastapi import APIRouter, Depends, Request
 
 from keepalive_api.auth import require_api_key
-from keepalive_api.deps import get_openai, get_redis, get_settings, get_telegram
+from keepalive_api.deps import get_openai, get_pg_pool, get_redis, get_settings, get_telegram
+from keepalive_api.events_log import log_event
 from keepalive_api.models import NotifyRequest
 
 logger = logging.getLogger("keepalive_api.notify")
@@ -85,11 +86,41 @@ async def notify(req: NotifyRequest, request: Request, _: str = Depends(require_
     resp = await telegram.post("/sendMessage", json=payload)
     resp.raise_for_status()
 
+    voice_sent = False
     if req.voice_script:
         voice_url = await _synthesize_voice(request, req.voice_script)
         if voice_url:
             voice_resp = await telegram.post("/sendVoice", json={"chat_id": req.chat_id, "voice": voice_url})
             if voice_resp.is_error:
                 logger.warning("sendVoice failed (%s): %s", voice_resp.status_code, voice_resp.text)
+            else:
+                voice_sent = True
 
+    await _self_log(request, req, voice_sent=voice_sent)
     return {"sent": True}
+
+
+async def _self_log(request: Request, req: NotifyRequest, *, voice_sent: bool) -> None:
+    """Best-effort: record a relay event that the Telegram message was sent.
+
+    notify only knows incident_id + chat_id, so we resolve project_id via the incident
+    row. If the incident isn't in the DB yet, skip self-logging silently.
+    """
+    pool = get_pg_pool(request)
+    if pool is None:
+        return
+    try:
+        row = await pool.fetchrow("SELECT project_id FROM incident WHERE id = $1", req.incident_id)
+    except Exception:
+        return
+    if row is None:
+        return
+    await log_event(
+        pool,
+        project_id=str(row["project_id"]),
+        incident_id=req.incident_id,
+        source="relay",
+        type="log",
+        message=f"telegram {req.kind} sent",
+        data={"voice_sent": voice_sent, "chat_id": req.chat_id},
+    )
