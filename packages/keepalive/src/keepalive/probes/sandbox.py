@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import os
 import shlex
 import time
 from typing import Any
@@ -22,6 +23,20 @@ def _probe_env(settings: Settings, ctx: RunContext, spec: ProbeSpec, steps: int)
         "KEEPALIVE_RESUME_FROM": ctx.last_checkpoint or "",
         "KEEPALIVE_MAX_STEPS": str(steps),
     }
+
+
+def _portable_entrypoint(entrypoint: list[str]) -> list[str]:
+    """Make a host-captured entrypoint runnable inside the sandbox.
+
+    The watchdog defaults to [sys.executable, ...], an absolute interpreter path that
+    only exists on the user's box — swap it for the sandbox's own `python`.
+    """
+    if not entrypoint:
+        return list(entrypoint)
+    first = entrypoint[0]
+    if os.sep in first and os.path.basename(first).startswith("python"):
+        return ["python", *entrypoint[1:]]
+    return list(entrypoint)
 
 
 class _Session:
@@ -71,7 +86,7 @@ class SandboxExecutor:
     def _build_script(self, spec: ProbeSpec, ctx: RunContext, steps: int) -> str:
         env = _probe_env(self._settings, ctx, spec, steps)
         env_prefix = " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items())
-        entry = " ".join(ctx.entrypoint)
+        entry = " ".join(shlex.quote(a) for a in _portable_entrypoint(ctx.entrypoint))
         branch = spec.branch or ""
         return (
             f"set -e && git clone {shlex.quote(ctx.repo_url)} repo && cd repo "
