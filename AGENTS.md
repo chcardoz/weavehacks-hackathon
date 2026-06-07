@@ -65,8 +65,11 @@ keepalive/
 ├── packages/
 │   └── keepalive/          # THE pip-installable library (src/ layout, py.typed)
 ├── apps/
-│   ├── api/                # FastAPI backend: keys, Telegram relay, reply webhook, audio page
-│   └── dashboard/          # Next.js: sign in, issue/revoke API keys (ka_live_...)
+│   ├── api/                # FastAPI backend: keys, Telegram relay, reply webhook, audio
+│   │                       #   page, observability event ingest + command feed
+│   └── dashboard/          # Next.js: sign in, issue/revoke API keys (ka_live_...),
+│                           #   /projects live observability (incidents, agents, logs,
+│                           #   demo fault injection — contract: infra/observability.md)
 └── docs/                   # Mintlify (docs.json, NOT mint.json; CLI is `mint`, not `mintlify`)
 ```
 

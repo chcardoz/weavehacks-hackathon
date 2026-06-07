@@ -24,17 +24,21 @@ plugin + drizzle + Neon Postgres + shadcn/ui. pnpm.
 | `BETTER_AUTH_SECRET` | random 32+ byte secret (`openssl rand -base64 32`) |
 | `BETTER_AUTH_URL` | the dashboard's public URL, e.g. `https://keepalive.club` |
 
-## 4. Run migrations BEFORE first use
+## 4. Push the schema BEFORE first use
 
-The Better Auth `api-key` plugin needs an `apikey` table. It does **not** exist until you
-generate + migrate. Run against Neon before anyone tries to issue a key:
+The Better Auth `api-key` plugin needs an `apikey` table (and the observability
+tables need to exist for `/projects`). None exist until you push the schema.
+From `apps/dashboard`, against Neon (prefer the **unpooled** connection string
+for DDL):
 
 ```bash
-pnpm --filter dashboard db:generate
-pnpm --filter dashboard db:migrate
+DATABASE_URL="<neon connection string>" pnpm db:push
 ```
 
-(Or from inside `apps/dashboard`: `pnpm db:generate && pnpm db:migrate`.)
+Heads-up: `@better-auth/cli migrate` does NOT work with this app (drizzle
+adapter; the CLI's migrate only supports Kysely) — `db:push` (drizzle-kit) is
+the working path. If you change Better Auth plugins, regenerate that part of
+the schema with `pnpm db:generate` first.
 
 <!-- If you skip this, key issuance fails because the apikey table is missing. -->
 
