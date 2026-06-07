@@ -3,9 +3,7 @@ import {
   agentStateTone,
   eventLevelClass,
   eventSourceClass,
-  formatCountdown,
   formatRelative,
-  humanReplyLabel,
   isIncidentResolved,
   parseLossHistory,
   projectStatusTone,
@@ -13,12 +11,12 @@ import {
 } from "./observability-types"
 
 describe("isIncidentResolved", () => {
-  it("treats resolved and stopped as resolved", () => {
+  it("treats resolved and failed as resolved", () => {
     expect(isIncidentResolved("resolved")).toBe(true)
-    expect(isIncidentResolved("stopped")).toBe(true)
+    expect(isIncidentResolved("failed")).toBe(true)
   })
   it("treats live statuses as unresolved", () => {
-    for (const s of ["detected", "diagnosing", "awaiting_human", "racing"]) {
+    for (const s of ["detected", "hypothesizing", "fixing"]) {
       expect(isIncidentResolved(s)).toBe(false)
     }
   })
@@ -26,10 +24,10 @@ describe("isIncidentResolved", () => {
 
 describe("projectStatusTone", () => {
   it("maps statuses to colors", () => {
+    expect(projectStatusTone("idle").dot).toBe("bg-muted-foreground")
     expect(projectStatusTone("training").dot).toBe("bg-emerald-500")
     expect(projectStatusTone("incident").dot).toBe("bg-red-500")
-    expect(projectStatusTone("awaiting_human").dot).toBe("bg-amber-500")
-    expect(projectStatusTone("racing").dot).toBe("bg-primary")
+    expect(projectStatusTone("fixing").dot).toBe("bg-primary")
     expect(projectStatusTone("recovered").dot).toBe("bg-sky-500")
     expect(projectStatusTone("stopped").dot).toBe("bg-muted-foreground")
   })
@@ -39,11 +37,11 @@ describe("projectStatusTone", () => {
 })
 
 describe("agentStateTone", () => {
-  it("running pulses, winner is default, failed is destructive", () => {
-    expect(agentStateTone("running").className).toContain("animate-pulse")
-    expect(agentStateTone("winner").variant).toBe("default")
+  it("coding pulses, pr_opened is emerald, failed is destructive", () => {
+    expect(agentStateTone("coding").className).toContain("animate-pulse")
+    expect(agentStateTone("pushed").className).toContain("sky")
+    expect(agentStateTone("pr_opened").className).toContain("emerald")
     expect(agentStateTone("failed").variant).toBe("destructive")
-    expect(agentStateTone("killed").variant).toBe("destructive")
     expect(agentStateTone("spawned").variant).toBe("muted")
   })
 })
@@ -51,33 +49,14 @@ describe("agentStateTone", () => {
 describe("event class helpers", () => {
   it("maps sources to hues", () => {
     expect(eventSourceClass("library")).toContain("emerald")
-    expect(eventSourceClass("cursor")).toContain("primary")
+    expect(eventSourceClass("hypothesis")).toContain("primary")
+    expect(eventSourceClass("coder")).toContain("violet")
     expect(eventSourceClass("unknown")).toContain("muted")
   })
   it("maps levels", () => {
     expect(eventLevelClass("warn")).toContain("amber")
     expect(eventLevelClass("error")).toContain("red")
     expect(eventLevelClass("info")).toBe("text-foreground")
-  })
-})
-
-describe("formatCountdown", () => {
-  const now = Date.parse("2026-06-07T00:00:00Z")
-  it("returns mm:ss for a future deadline", () => {
-    const dl = new Date(now + 65_000).toISOString()
-    expect(formatCountdown(dl, now)).toBe("01:05")
-  })
-  it("pads single digits", () => {
-    const dl = new Date(now + 5_000).toISOString()
-    expect(formatCountdown(dl, now)).toBe("00:05")
-  })
-  it("returns expired when past", () => {
-    const dl = new Date(now - 1000).toISOString()
-    expect(formatCountdown(dl, now)).toBe("expired")
-  })
-  it("handles null and garbage", () => {
-    expect(formatCountdown(null, now)).toBe("—")
-    expect(formatCountdown("not-a-date", now)).toBe("—")
   })
 })
 
@@ -126,16 +105,6 @@ describe("parseLossHistory", () => {
         { step: 4, loss: 0.5 },
       ]),
     ).toEqual([{ step: 4, loss: 0.5 }])
-  })
-})
-
-describe("humanReplyLabel", () => {
-  it("maps 1/2/3 to actions and passes through free text", () => {
-    expect(humanReplyLabel("1")).toBe("rolled back")
-    expect(humanReplyLabel("2")).toBe("apply fix")
-    expect(humanReplyLabel("3")).toBe("stop")
-    expect(humanReplyLabel("custom")).toBe("custom")
-    expect(humanReplyLabel(null)).toBe(null)
   })
 })
 

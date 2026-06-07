@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { BookOpen, ChevronsUpDown, LogOut } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -72,14 +73,10 @@ export function NavUser({ email }: { email: string }) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <a
-                href="https://docs.keepalive.club"
-                target="_blank"
-                rel="noreferrer"
-              >
+              <Link href="/docs">
                 <BookOpen />
                 Docs
-              </a>
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onSignOut}>

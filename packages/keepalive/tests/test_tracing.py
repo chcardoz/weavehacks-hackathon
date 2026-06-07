@@ -4,37 +4,16 @@ import pytest
 
 import keepalive.tracing as tracing
 from keepalive.tracing import (
+    attributes,
     current_trace_url,
-    incident_attributes,
     init_tracing,
     traced,
-)
-from keepalive.types import (
-    FailureEvent,
-    FailureKind,
-    Incident,
-    RunContext,
 )
 
 
 @pytest.fixture(autouse=True)
 def clear_init_cache() -> None:
     tracing._initialized.clear()
-
-
-def _incident() -> Incident:
-    run = RunContext(
-        run_id="r1",
-        project="p",
-        entity="e",
-        run_url="https://wandb.ai/e/p/r1",
-        commit_sha="abc123",
-        repo_url="https://github.com/x/y",
-        entrypoint=["python", "train.py"],
-        checkpoint_dir="/ckpt",
-    )
-    failure = FailureEvent(kind=FailureKind.NAN_LOSS, step=5, message="boom")
-    return Incident(id="inc1", run=run, failure=failure)
 
 
 def test_traced_bare_decorator_computes() -> None:
@@ -53,8 +32,8 @@ def test_traced_with_name_computes() -> None:
     assert mul(4, 5) == 20
 
 
-def test_incident_attributes_yields() -> None:
-    with incident_attributes(_incident()):
+def test_attributes_yields() -> None:
+    with attributes({"incident_id": "inc1", "run_id": "r1"}):
         pass
 
 

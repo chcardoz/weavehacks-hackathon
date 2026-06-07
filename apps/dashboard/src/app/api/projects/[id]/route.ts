@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from "next/server"
 import { and, asc, desc, eq, gt } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { agent, event, incident, project } from "@/db/schema"
+import { getOctokit } from "@/lib/github"
+import { agent, event, incident, project, run } from "@/db/schema"
 import {
   type AgentRow,
   type AgentState,
@@ -15,6 +16,8 @@ import {
   parseLossHistory,
   type Project,
   type ProjectStatus,
+  type Run,
+  type RunStatus,
 } from "@/lib/observability-types"
 
 export const dynamic = "force-dynamic"
@@ -48,9 +51,16 @@ export async function GET(
     .where(eq(project.id, id))
     .limit(1)
 
-  if (!projectRow) {
+  if (!projectRow || projectRow.userId !== session.user.id) {
     return NextResponse.json({ error: "not_found" }, { status: 404 })
   }
+
+  const [latestRunRow] = await db
+    .select()
+    .from(run)
+    .where(eq(run.projectId, id))
+    .orderBy(desc(run.createdAt))
+    .limit(1)
 
   const incidentRows = await db
     .select()
@@ -92,28 +102,55 @@ export async function GET(
 
   const projectOut: Project = {
     id: projectRow.id,
+    userId: projectRow.userId,
     name: projectRow.name,
-    repo: projectRow.repo,
-    wandbRunId: projectRow.wandbRunId,
-    wandbUrl: projectRow.wandbUrl,
-    commitSha: projectRow.commitSha,
+    repoOwner: projectRow.repoOwner,
+    repoName: projectRow.repoName,
+    defaultBranch: projectRow.defaultBranch,
+    webhookId: projectRow.webhookId,
+    trainCommand: projectRow.trainCommand,
+    monitoringPrompt: projectRow.monitoringPrompt,
+    fixingPrompt: projectRow.fixingPrompt,
+    confidenceThreshold: projectRow.confidenceThreshold,
+    maxAgents: projectRow.maxAgents,
+    monitorModel: projectRow.monitorModel,
     status: projectRow.status as ProjectStatus,
-    currentStep: projectRow.currentStep,
-    latestLoss: projectRow.latestLoss,
-    lossHistory: parseLossHistory(projectRow.lossHistory),
-    demoMode: projectRow.demoMode ?? false,
-    lastEventAt: isoOrNull(projectRow.lastEventAt),
+    createdAt: isoOrNull(projectRow.createdAt),
+    updatedAt: isoOrNull(projectRow.updatedAt),
   }
+
+  const latestRun: Run | null = latestRunRow
+    ? {
+        id: latestRunRow.id,
+        projectId: latestRunRow.projectId,
+        wandbRunId: latestRunRow.wandbRunId,
+        wandbUrl: latestRunRow.wandbUrl,
+        commitSha: latestRunRow.commitSha,
+        branch: latestRunRow.branch,
+        source: latestRunRow.source as Run["source"] ?? "local",
+        sandboxId: latestRunRow.sandboxId,
+        status: latestRunRow.status as RunStatus,
+        currentStep: latestRunRow.currentStep,
+        latestLoss: latestRunRow.latestLoss,
+        lossHistory: parseLossHistory(latestRunRow.lossHistory),
+        demoMode: latestRunRow.demoMode ?? false,
+        lastEventAt: isoOrNull(latestRunRow.lastEventAt),
+        lastScoredAt: isoOrNull(latestRunRow.lastScoredAt),
+        createdAt: isoOrNull(latestRunRow.createdAt),
+      }
+    : null
 
   const incidents: Incident[] = incidentRows.map((inc) => ({
     id: inc.id,
     projectId: inc.projectId,
+    runId: inc.runId,
     kind: inc.kind,
     step: inc.step,
     status: inc.status as IncidentStatus,
+    confidence: inc.confidence,
+    reasoning: inc.reasoning,
     diagnosis: inc.diagnosis,
-    humanReply: inc.humanReply,
-    deadlineAt: isoOrNull(inc.deadlineAt),
+    workflowRunId: inc.workflowRunId,
     weaveUrl: inc.weaveUrl,
     winnerAgentId: inc.winnerAgentId,
     resolvedAt: isoOrNull(inc.resolvedAt),
@@ -125,18 +162,19 @@ export async function GET(
     incidentId: a.incidentId,
     projectId: a.projectId,
     hypothesis: a.hypothesis,
-    cursorAgentId: a.cursorAgentId,
     branch: a.branch,
+    prUrl: a.prUrl,
+    prNumber: a.prNumber,
     state: a.state as AgentState,
-    wandbRunId: a.wandbRunId,
-    finalLoss: a.finalLoss,
-    lossHistory: parseLossHistory(a.lossHistory),
+    report: a.report,
+    sandboxId: a.sandboxId,
     error: a.error,
   }))
 
   const events: EventRow[] = eventRows.map((e) => ({
     id: e.id,
     projectId: e.projectId,
+    runId: e.runId,
     incidentId: e.incidentId,
     agentId: e.agentId,
     source: e.source as EventSource,
@@ -149,8 +187,136 @@ export async function GET(
 
   return NextResponse.json({
     project: projectOut,
+    latestRun,
     incidents,
     agents,
     events,
   })
+}
+
+// --- PATCH /api/projects/[id]: edit project config (whitelisted columns) ---
+
+const MONITOR_MODELS = new Set([
+  "wandb/microsoft/Phi-4-mini-instruct",
+  "openai/gpt-5.4-mini",
+  "openai/gpt-5.4",
+])
+
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  const { id } = await ctx.params
+
+  const [projectRow] = await db
+    .select({ userId: project.userId })
+    .from(project)
+    .where(eq(project.id, id))
+    .limit(1)
+  if (!projectRow || projectRow.userId !== session.user.id) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 })
+  }
+
+  let body: Record<string, unknown> | null
+  try {
+    body = (await req.json()) as Record<string, unknown>
+  } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 })
+  }
+
+  const updates: Partial<typeof project.$inferInsert> = {}
+
+  if (typeof body.name === "string" && body.name.trim() !== "") {
+    updates.name = body.name.trim()
+  }
+  if (typeof body.trainCommand === "string" && body.trainCommand.trim() !== "") {
+    updates.trainCommand = body.trainCommand.trim()
+  }
+  if (
+    typeof body.defaultBranch === "string" &&
+    body.defaultBranch.trim() !== ""
+  ) {
+    updates.defaultBranch = body.defaultBranch.trim()
+  }
+  if (typeof body.monitoringPrompt === "string") {
+    const v = body.monitoringPrompt.trim()
+    updates.monitoringPrompt = v === "" ? null : v
+  }
+  if (typeof body.fixingPrompt === "string") {
+    const v = body.fixingPrompt.trim()
+    updates.fixingPrompt = v === "" ? null : v
+  }
+  if (typeof body.confidenceThreshold === "number") {
+    updates.confidenceThreshold = Math.min(
+      1,
+      Math.max(0, body.confidenceThreshold),
+    )
+  }
+  if (typeof body.maxAgents === "number") {
+    updates.maxAgents = Math.min(5, Math.max(1, Math.round(body.maxAgents)))
+  }
+  if (
+    typeof body.monitorModel === "string" &&
+    MONITOR_MODELS.has(body.monitorModel)
+  ) {
+    updates.monitorModel = body.monitorModel
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "no_valid_fields" }, { status: 400 })
+  }
+
+  updates.updatedAt = new Date()
+
+  await db.update(project).set(updates).where(eq(project.id, id))
+
+  return NextResponse.json({ ok: true })
+}
+
+// --- DELETE /api/projects/[id]: cascade-delete + best-effort webhook removal ---
+
+export async function DELETE(
+  _req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  const { id } = await ctx.params
+
+  const [projectRow] = await db
+    .select()
+    .from(project)
+    .where(eq(project.id, id))
+    .limit(1)
+  if (!projectRow || projectRow.userId !== session.user.id) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 })
+  }
+
+  // Best-effort: remove the GitHub webhook we installed.
+  if (projectRow.webhookId != null) {
+    try {
+      const octokit = await getOctokit(session.user.id)
+      await octokit.rest.repos.deleteWebhook({
+        owner: projectRow.repoOwner,
+        repo: projectRow.repoName,
+        hook_id: projectRow.webhookId,
+      })
+    } catch (e) {
+      console.error("deleteWebhook failed", (e as Error).message)
+    }
+  }
+
+  // event has no FK cascade — delete it explicitly. The rest cascade from project.
+  await db.delete(event).where(eq(event.projectId, id))
+  await db.delete(project).where(eq(project.id, id))
+
+  return NextResponse.json({ ok: true })
 }

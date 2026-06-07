@@ -121,6 +121,22 @@ def _poller_with_responses(responses: list[Any], injector: FaultInjector, report
     return CommandPoller(make_settings(), "run-1", injector, reporter, http=http)
 
 
+def test_command_poller_hits_v1_endpoint() -> None:
+    inj = FaultInjector()
+    rep = RecordingReporter()
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.path)
+        return httpx.Response(200, json={"commands": []})
+
+    http = httpx.Client(base_url="https://api.test", transport=httpx.MockTransport(handler))
+    poller = CommandPoller(make_settings(), "proj-1", inj, rep, http=http)
+    poller.poll_once()
+    poller.close()
+    assert seen == ["/api/v1/projects/proj-1/commands"]
+
+
 def test_command_poller_arms_injector_and_logs() -> None:
     inj = FaultInjector()
     rep = RecordingReporter()

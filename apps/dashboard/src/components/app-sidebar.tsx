@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Activity, BookOpen, FolderGit2, KeyRound } from "lucide-react"
+import { Activity, BookOpen, FolderGit2, KeyRound, Settings } from "lucide-react"
 import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
@@ -21,6 +21,7 @@ import {
 const nav = [
   { title: "Projects", href: "/projects", icon: FolderGit2 },
   { title: "API keys", href: "/keys", icon: KeyRound },
+  { title: "Settings", href: "/settings", icon: Settings },
 ]
 
 export function AppSidebar({
@@ -58,7 +59,10 @@ export function AppSidebar({
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === item.href}
+                  isActive={
+                    pathname === item.href ||
+                    pathname.startsWith(`${item.href}/`)
+                  }
                   tooltip={item.title}
                 >
                   <Link href={item.href}>
@@ -70,14 +74,10 @@ export function AppSidebar({
             ))}
             <SidebarMenuItem>
               <SidebarMenuButton asChild tooltip="Docs">
-                <a
-                  href="https://docs.keepalive.club"
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <Link href="/docs">
                   <BookOpen />
                   <span>Docs</span>
-                </a>
+                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

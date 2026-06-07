@@ -1,6 +1,7 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
+import { UserShell } from "@/components/user-shell"
 import { ProjectsGrid } from "./projects-grid"
 
 export default async function ProjectsPage() {
@@ -8,5 +9,9 @@ export default async function ProjectsPage() {
   if (!session) {
     redirect("/sign-in")
   }
-  return <ProjectsGrid />
+  return (
+    <UserShell userEmail={session.user.email} title="Projects">
+      <ProjectsGrid />
+    </UserShell>
+  )
 }

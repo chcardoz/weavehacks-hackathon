@@ -7,24 +7,26 @@ requires-python = ">=3.11"
 package = false
 
 [tool.uv.workspace]
-members = ["packages/*", "apps/api"]
+members = ["packages/*"]
 
 [tool.uv.sources]
-keepalive = { workspace = true }
+keepalive-club = { workspace = true }
 
 [dependency-groups]
 dev = [
+    "keepalive-club",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "pytest-mock>=3.14",
     "respx>=0.21",
-    "fakeredis>=2.26",
     "ruff>=0.8",
     "pyright>=1.1.390",
+    "wandb>=0.19",
+    "weave>=0.51",
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/keepalive/tests", "apps/api/tests"]
+testpaths = ["packages/keepalive/tests"]
 addopts = "--import-mode=importlib"
 consider_namespace_packages = true
 asyncio_mode = "auto"
@@ -33,7 +35,7 @@ filterwarnings = ["ignore::DeprecationWarning"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-include = ["packages/**/*.py", "apps/api/**/*.py"]
+include = ["packages/**/*.py"]
 
 [tool.ruff.lint]
 extend-select = ["I", "UP", "B", "C4", "SIM", "RUF"]
@@ -41,7 +43,7 @@ ignore = ["SIM108", "SIM117"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
-known-first-party = ["keepalive", "keepalive_api"]
+known-first-party = ["keepalive"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["B", "SIM", "RUF012"]
@@ -52,6 +54,6 @@ typeCheckingMode = "standard"
 reportMissingTypeStubs = false
 reportMissingModuleSource = false
 reportPrivateImportUsage = false
-include = ["packages/keepalive/src", "apps/api/src"]
+include = ["packages/keepalive/src"]
 venvPath = "."
 venv = ".venv"

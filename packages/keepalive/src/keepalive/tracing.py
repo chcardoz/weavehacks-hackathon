@@ -4,8 +4,6 @@ import contextlib
 from collections.abc import Callable, Iterator
 from typing import Any, TypeVar, overload
 
-from keepalive.types import Incident
-
 F = TypeVar("F", bound=Callable[..., Any])
 
 _initialized: dict[str, bool] = {}
@@ -48,15 +46,10 @@ def traced(fn: F | None = None, *, name: str | None = None) -> F | Callable[[F],
 
 
 @contextlib.contextmanager
-def incident_attributes(incident: Incident) -> Iterator[None]:
+def attributes(attrs: dict[str, Any]) -> Iterator[None]:
     try:
         import weave
 
-        attrs = {
-            "incident_id": incident.id,
-            "run_id": incident.run.run_id,
-            "failure_kind": str(incident.failure.kind),
-        }
         with weave.attributes(attrs):
             yield
     except (ImportError, Exception):

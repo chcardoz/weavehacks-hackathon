@@ -1,17 +1,10 @@
-import { headers } from "next/headers"
-import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
-import { ProjectDetailView } from "@/components/projects/project-detail-view"
+import { ProjectOverview } from "./project-overview"
 
-export default async function ProjectDetailPage({
+export default async function ProjectOverviewPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session) {
-    redirect("/sign-in")
-  }
   const { id } = await params
-  return <ProjectDetailView projectId={id} />
+  return <ProjectOverview projectId={id} />
 }

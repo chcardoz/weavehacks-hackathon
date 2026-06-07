@@ -1,0 +1,111 @@
+---
+title: Quickstart
+description: From GitHub sign-in to a self-healing training run in five minutes.
+---
+
+import { Step, Steps } from "fumadocs-ui/components/steps"
+import { Callout } from "fumadocs-ui/components/callout"
+
+<Steps>
+
+<Step>
+
+### Sign in with GitHub
+
+Open the dashboard and **Sign in with GitHub**. We request the `repo` scope so the
+fixing pipeline can read your training repo and open pull requests on your behalf.
+
+</Step>
+
+<Step>
+
+### Create an API key
+
+Go to **API Keys → New key**. Copy the `ka_live_…` value — it is shown once. This key
+authenticates the library when it reports metrics and events.
+
+</Step>
+
+<Step>
+
+### Create a Project
+
+Go to **Projects → New Project** and pick the GitHub repo that holds your training code.
+We store the repo and install a push webhook on it. Merging to its default branch is what
+launches training.
+
+</Step>
+
+<Step>
+
+### Install and log in
+
+On your machine:
+
+```bash
+pip install keepalive-club
+keepalive login   # paste your ka_live_ key; stored in ~/.config/keepalive/config.json
+```
+
+<Callout>
+The PyPI distribution is `keepalive-club`, but the import is plain `import keepalive`.
+</Callout>
+
+Set `WANDB_API_KEY` in your environment too — training reports to Weights & Biases.
+
+</Step>
+
+<Step>
+
+### Wrap your training loop
+
+Add a `watchdog` context manager around your loop. The `prompt` is plain English: describe
+what healthy training looks like for *this* model.
+
+```python
+import keepalive, wandb
+
+run = wandb.init(project="my-model")
+
+with keepalive.watchdog(
+    run,
+    prompt="Flag if val/loss diverges from train/loss or grad norms spike",
+    threshold=0.6,
+    max_agents=3,
+):
+    train()
+```
+
+The watchdog hooks `run.log()`, batches metrics and events to the dashboard, and runs
+hard-failure detectors (NaN loss, OOM, stalls, exceptions) in-process with zero lag.
+
+</Step>
+
+<Step>
+
+### Merge to main
+
+Push your wired-up training script and merge to your default branch. The push webhook
+fires the **training launch** workflow: we spin up a W&B Sandbox, clone your repo at the
+merged commit, `pip install -r requirements.txt`, and run your train command. Branch
+pushes never trigger training — only the default branch does.
+
+</Step>
+
+<Step>
+
+### Watch the dashboard
+
+Open the project's **Overview**. You'll see the live loss curve, the event feed, and the
+run status. When the monitoring agent flags something — or a hard failure trips — an
+**Incident** appears, the fixing pipeline spawns coding agents, and PRs land on your repo,
+each with a written report.
+
+</Step>
+
+</Steps>
+
+<Callout>
+Don't want to wire it by hand? Hand the [agent blurb](/docs/agent-blurb) to Claude or
+Cursor and let your coding agent do the integration.
+</Callout>

@@ -1,47 +1,25 @@
 // Shared types + pure helpers for the observability UI.
-// See infra/observability.md for the contract.
+// See infra/architecture-v2.md for the v2 contract (status vocabularies, sources).
 
-export type ProjectStatus =
-  | "training"
-  | "incident"
-  | "awaiting_human"
-  | "racing"
-  | "recovered"
-  | "stopped"
+export type ProjectStatus = "idle" | "training" | "incident" | "fixing" | "recovered" | "stopped"
 
-export type IncidentStatus =
-  | "detected"
-  | "diagnosing"
-  | "awaiting_human"
-  | "racing"
-  | "resolved"
-  | "stopped"
+export type RunStatus = "training" | "incident" | "fixing" | "recovered" | "stopped" | "finished"
 
-export type AgentState =
-  | "spawned"
-  | "writing"
-  | "branch_pushed"
-  | "running"
-  | "finished"
-  | "winner"
-  | "killed"
-  | "failed"
+export type IncidentStatus = "detected" | "hypothesizing" | "fixing" | "resolved" | "failed"
 
-export type EventSource =
-  | "library"
-  | "relay"
-  | "cursor"
-  | "sandbox"
-  | "openai"
-  | "wandb"
+export type AgentState = "spawned" | "coding" | "pushed" | "pr_opened" | "failed"
+
+export type EventSource = "library" | "server" | "monitor" | "hypothesis" | "coder" | "sandbox" | "github"
 
 export type EventLevel = "info" | "warn" | "error"
 
-export type CommandType =
-  | "inject_nan"
-  | "inject_divergence"
-  | "inject_stall"
-  | "inject_oom"
+// Library-emitted event types (the only ones the client sends).
+export type LibraryEventType = "run.started" | "run.heartbeat" | "run.stopped" | "incident.detected" | "log"
+
+// Server-emitted event types (workflows + monitor).
+export type ServerEventType = "monitor.scored" | "incident.created" | "hypothesis.generated" | "agent.spawned" | "agent.coding" | "agent.pushed" | "agent.pr_opened" | "agent.failed" | "incident.resolved" | "incident.failed" | "training.launched"
+
+export type CommandType = "inject_nan" | "inject_divergence" | "inject_stall" | "inject_oom"
 
 export const COMMAND_TYPES: CommandType[] = [
   "inject_nan",
@@ -57,34 +35,60 @@ export interface LossPoint {
 
 export interface Project {
   id: string
+  userId: string
   name: string
-  repo: string | null
+  repoOwner: string
+  repoName: string
+  defaultBranch: string
+  webhookId: number | null
+  trainCommand: string
+  monitoringPrompt: string | null
+  fixingPrompt: string | null
+  confidenceThreshold: number
+  maxAgents: number
+  monitorModel: string
+  status: ProjectStatus
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface Run {
+  id: string
+  projectId: string
   wandbRunId: string | null
   wandbUrl: string | null
   commitSha: string | null
-  status: ProjectStatus
+  branch: string | null
+  source: "local" | "sandbox"
+  sandboxId: string | null
+  status: RunStatus
   currentStep: number | null
   latestLoss: number | null
   lossHistory: LossPoint[]
   demoMode: boolean
   lastEventAt: string | null
+  lastScoredAt: string | null
+  createdAt: string | null
 }
 
 // /api/projects list item: project + a little derived context.
 export interface ProjectListItem extends Project {
+  latestRun: Run | null
   activeIncident: Incident | null
-  racingAgentCount: number
+  fixingAgentCount: number
 }
 
 export interface Incident {
   id: string
   projectId: string
-  kind: string
+  runId: string
+  kind: string | null
   step: number | null
   status: IncidentStatus
+  confidence: number | null
+  reasoning: string | null
   diagnosis: string | null
-  humanReply: string | null
-  deadlineAt: string | null
+  workflowRunId: string | null
   weaveUrl: string | null
   winnerAgentId: string | null
   resolvedAt: string | null
@@ -95,19 +99,20 @@ export interface AgentRow {
   id: string
   incidentId: string
   projectId: string
-  hypothesis: string | null
-  cursorAgentId: string | null
+  hypothesis: string
   branch: string | null
+  prUrl: string | null
+  prNumber: number | null
   state: AgentState
-  wandbRunId: string | null
-  finalLoss: number | null
-  lossHistory: LossPoint[]
+  report: string | null
+  sandboxId: string | null
   error: string | null
 }
 
 export interface EventRow {
   id: number
   projectId: string
+  runId: string | null
   incidentId: string | null
   agentId: string | null
   source: EventSource
@@ -118,8 +123,20 @@ export interface EventRow {
   createdAt: string
 }
 
+export interface MemoryRow {
+  id: string
+  projectId: string
+  incidentId: string | null
+  kind: string | null
+  summary: string
+  resolution: string | null
+  data: unknown
+  createdAt: string
+}
+
 export interface ProjectDetail {
   project: Project
+  latestRun: Run | null
   incidents: Incident[]
   agents: AgentRow[]
   events: EventRow[]
@@ -127,7 +144,7 @@ export interface ProjectDetail {
 
 // --- pure helpers (unit tested) ---
 
-const RESOLVED_INCIDENT_STATUSES: IncidentStatus[] = ["resolved", "stopped"]
+const RESOLVED_INCIDENT_STATUSES: IncidentStatus[] = ["resolved", "failed"]
 
 export function isIncidentResolved(status: IncidentStatus | string): boolean {
   return (RESOLVED_INCIDENT_STATUSES as string[]).includes(status)
@@ -141,13 +158,13 @@ export type StatusTone = {
 
 export function projectStatusTone(status: ProjectStatus | string): StatusTone {
   switch (status) {
+    case "idle":
+      return { dot: "bg-muted-foreground", text: "text-muted-foreground" }
     case "training":
       return { dot: "bg-emerald-500", text: "text-emerald-400" }
     case "incident":
       return { dot: "bg-red-500", text: "text-red-400" }
-    case "awaiting_human":
-      return { dot: "bg-amber-500", text: "text-amber-400" }
-    case "racing":
+    case "fixing":
       return { dot: "bg-primary", text: "text-primary" }
     case "recovered":
       return { dot: "bg-sky-500", text: "text-sky-400" }
@@ -161,33 +178,65 @@ export function projectStatusTone(status: ProjectStatus | string): StatusTone {
 export type BadgeTone = "default" | "muted" | "destructive"
 
 // Maps an agent state to a shadcn Badge variant + extra classes.
-export function agentStateTone(state: AgentState | string): {
+export function agentStateTone(
+  state: AgentState | string,
+): {
   variant: BadgeTone
   className: string
 } {
   switch (state) {
     case "spawned":
-    case "writing":
       return { variant: "muted", className: "" }
-    case "branch_pushed":
-      return {
-        variant: "muted",
-        className: "bg-sky-500/15 text-sky-400 border-transparent",
-      }
-    case "running":
+    case "coding":
       return {
         variant: "muted",
         className:
           "bg-primary/15 text-primary border-transparent animate-pulse",
       }
-    case "finished":
+    case "pushed":
+      return {
+        variant: "muted",
+        className: "bg-sky-500/15 text-sky-400 border-transparent",
+      }
+    case "pr_opened":
       return {
         variant: "muted",
         className: "bg-emerald-500/15 text-emerald-400 border-transparent",
       }
-    case "winner":
-      return { variant: "default", className: "" }
-    case "killed":
+    case "failed":
+      return { variant: "destructive", className: "" }
+    default:
+      return { variant: "muted", className: "" }
+  }
+}
+
+// Maps an incident status to a shadcn Badge variant + extra classes.
+export function incidentStatusTone(status: IncidentStatus | string): {
+  variant: BadgeTone
+  className: string
+} {
+  switch (status) {
+    case "detected":
+      return {
+        variant: "muted",
+        className: "bg-red-500/15 text-red-400 border-transparent",
+      }
+    case "hypothesizing":
+      return {
+        variant: "muted",
+        className:
+          "bg-primary/15 text-primary border-transparent animate-pulse",
+      }
+    case "fixing":
+      return {
+        variant: "muted",
+        className: "bg-amber-500/15 text-amber-400 border-transparent",
+      }
+    case "resolved":
+      return {
+        variant: "muted",
+        className: "bg-emerald-500/15 text-emerald-400 border-transparent",
+      }
     case "failed":
       return { variant: "destructive", className: "" }
     default:
@@ -200,16 +249,18 @@ export function eventSourceClass(source: EventSource | string): string {
   switch (source) {
     case "library":
       return "bg-emerald-500/10 text-emerald-400"
-    case "relay":
+    case "server":
       return "bg-sky-500/10 text-sky-400"
-    case "cursor":
-      return "bg-primary/10 text-primary"
-    case "sandbox":
-      return "bg-violet-500/10 text-violet-400"
-    case "openai":
+    case "monitor":
       return "bg-teal-500/10 text-teal-400"
-    case "wandb":
+    case "hypothesis":
+      return "bg-primary/10 text-primary"
+    case "coder":
+      return "bg-violet-500/10 text-violet-400"
+    case "sandbox":
       return "bg-amber-500/10 text-amber-400"
+    case "github":
+      return "bg-foreground/10 text-foreground"
     default:
       return "bg-muted text-muted-foreground"
   }
@@ -219,22 +270,6 @@ export function eventLevelClass(level: EventLevel | string): string {
   if (level === "warn") return "text-amber-400"
   if (level === "error") return "text-red-400"
   return "text-foreground"
-}
-
-// "mm:ss" until the deadline, or "expired". deadlineAt is ISO; now is ms epoch.
-export function formatCountdown(
-  deadlineAt: string | null,
-  now: number = Date.now(),
-): string {
-  if (!deadlineAt) return "—"
-  const target = new Date(deadlineAt).getTime()
-  if (Number.isNaN(target)) return "—"
-  const remainingMs = target - now
-  if (remainingMs <= 0) return "expired"
-  const totalSeconds = Math.floor(remainingMs / 1000)
-  const mm = Math.floor(totalSeconds / 60)
-  const ss = totalSeconds % 60
-  return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
 }
 
 // "Xs ago" / "Xm ago" / "Xh ago" from an ISO timestamp.
@@ -274,21 +309,6 @@ export function parseLossHistory(value: unknown): LossPoint[] {
   return out
 }
 
-// Human-readable reply mapping (1/2/3 → action). Reply may also be free text.
-export function humanReplyLabel(reply: string | null): string | null {
-  if (!reply) return null
-  switch (reply.trim()) {
-    case "1":
-      return "rolled back"
-    case "2":
-      return "apply fix"
-    case "3":
-      return "stop"
-    default:
-      return reply
-  }
-}
-
 // Build an SVG polyline points string from loss points, fit to a box.
 // Pure + testable. Returns "" when there is nothing to draw.
 export function sparklinePoints(
@@ -324,13 +344,14 @@ export function sparklinePoints(
 // One-line label describing what a project is doing right now.
 export function projectActivityKind(item: ProjectListItem): string {
   switch (item.status) {
+    case "idle":
+      return "idle"
     case "training":
       return "training"
     case "incident":
-    case "awaiting_human":
       return item.activeIncident?.kind ?? "incident"
-    case "racing":
-      return "racing"
+    case "fixing":
+      return "fixing"
     case "recovered":
       return "recovered"
     case "stopped":

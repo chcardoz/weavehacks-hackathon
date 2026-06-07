@@ -1,0 +1,59 @@
+---
+title: keepalive
+description: Agents that hold your training run accountable.
+---
+
+import { Callout } from "fumadocs-ui/components/callout"
+
+**keepalive** watches your training runs and fixes them while you sleep. You write
+a plain-English sentence describing what healthy training looks like; we run a
+monitoring agent against your live metrics, and when something drifts, a fleet of
+coding agents open pull requests with candidate fixes — each with a full report.
+
+One-liner: **agents that hold you accountable — and stop waiting when you don't show up.**
+
+## What you get
+
+- **A monitoring agent** that reads your metrics every few seconds and scores them
+  against your prompt: "Flag if `val/loss` diverges from `train/loss` or grad norms spike."
+- **A fixing pipeline** that, on an incident, spawns up to `max_agents` coding agents.
+  Each works in its own sandbox on its own branch and opens a PR with a written report.
+- **Training that launches itself.** Merge to your default branch and the run starts in a
+  W&B Sandbox, reporting metrics straight back to the dashboard.
+- **Full traceability.** Every agent decision is one Weave trace tree per incident.
+
+## The flow
+
+```
+  merge to main
+        │
+        ▼
+  ┌──────────────────────┐
+  │  W&B Sandbox training │  ── metrics ──▶  POST /api/v1/events
+  └──────────────────────┘
+        │
+        ▼
+  ┌──────────────────────┐
+  │   monitoring agent    │  scores each window  →  { confidence, reasoning }
+  └──────────────────────┘
+        │  confidence < threshold  (or a hard failure: NaN / OOM / crash)
+        ▼
+  ┌──────────────────────┐
+  │    fixing pipeline    │  hypothesis agent → N coding agents (one per sandbox)
+  └──────────────────────┘
+        │
+        ▼
+   N pull requests, each with a hypothesis + a full report
+```
+
+<Callout title="Checkpoints required">
+  Resume-from-checkpoint is the whole point — checkpoint every N steps so the platform
+  can relaunch and so your incidents stay cheap. Everyone serious already does this.
+</Callout>
+
+## Get going
+
+- [Quickstart](/docs/quickstart) — sign in, create a key, wire up your loop, merge.
+- [Agent blurb](/docs/agent-blurb) — the prompt you hand your coding agent to wire keepalive in.
+- [Concepts](/docs/concepts) — how the monitoring and fixing agents actually work.
+- [Reference](/docs/reference) — `keepalive.watchdog` params, env vars, CLI, events.
