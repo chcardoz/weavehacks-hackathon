@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "pnpm@10.25.0",
   "scripts": {
+    "postinstall": "node scripts/patch-vercel-sandbox-sourcemaps.mjs",
     "lint": "pnpm --filter dashboard lint",
     "fmt": "pnpm --filter dashboard fmt",
     "test": "pnpm --filter dashboard test"
@@ -10,9 +11,6 @@
   "pnpm": {
     "overrides": {
       "kysely": "0.28.17"
-    },
-    "patchedDependencies": {
-      "@vercel/sandbox@2.1.1": "patches/@vercel__sandbox@2.1.1.patch"
     }
   }
 }

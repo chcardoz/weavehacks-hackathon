@@ -4,7 +4,49 @@ import { apiKey } from "@better-auth/api-key"
 import { db } from "@/lib/db"
 import { schema } from "@/db/schema"
 
+function hostFromURL(value: string | undefined) {
+  if (!value) return undefined
+  try {
+    return new URL(value.startsWith("http") ? value : `https://${value}`).host
+  } catch {
+    return undefined
+  }
+}
+
+function originFromURL(value: string | undefined) {
+  if (!value) return undefined
+  try {
+    return new URL(value.startsWith("http") ? value : `https://${value}`).origin
+  } catch {
+    return undefined
+  }
+}
+
+function unique(values: Array<string | undefined>) {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))]
+}
+
+const fallbackAuthOrigin =
+  originFromURL(process.env.BETTER_AUTH_URL) ??
+  originFromURL(process.env.VERCEL_PROJECT_PRODUCTION_URL) ??
+  originFromURL(process.env.VERCEL_URL) ??
+  "http://localhost:3000"
+
+const allowedAuthHosts = unique([
+  "localhost:3000",
+  "127.0.0.1:3000",
+  "*.vercel.app",
+  hostFromURL(process.env.BETTER_AUTH_URL),
+  hostFromURL(process.env.VERCEL_PROJECT_PRODUCTION_URL),
+  hostFromURL(process.env.VERCEL_URL),
+])
+
 export const auth = betterAuth({
+  baseURL: {
+    allowedHosts: allowedAuthHosts,
+    fallback: fallbackAuthOrigin,
+    protocol: "auto",
+  },
   database: drizzleAdapter(db, {
     provider: "pg",
     schema,
@@ -26,6 +68,9 @@ export const auth = betterAuth({
       enabled: true,
       trustedProviders: ["github"],
     },
+  },
+  advanced: {
+    trustedProxyHeaders: true,
   },
   plugins: [
     apiKey({
