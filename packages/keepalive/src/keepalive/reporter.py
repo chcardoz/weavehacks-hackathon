@@ -19,6 +19,8 @@ _FLUSH_INTERVAL_S = 2.0
 _HEARTBEAT_INTERVAL_S = 5.0
 _CLOSE_TIMEOUT_S = 2.0
 
+_EVENTS_PATH = "/api/v1/events"
+
 _SENTINEL = object()
 
 
@@ -27,20 +29,29 @@ class EventReporter:
 
     Events are queued from the hot path (``queue.put_nowait``; never blocks, never
     raises) and flushed by a daemon thread that batches up to ``_BATCH_MAX`` events
-    or every ``_FLUSH_INTERVAL_S`` seconds and POSTs them to ``/v1/events``. Every
-    exception is swallowed: a dead relay must never affect the training run.
+    or every ``_FLUSH_INTERVAL_S`` seconds and POSTs them to ``/api/v1/events``.
+    Every exception is swallowed: a dead server must never affect the training run.
+
+    The library sends its own run-scoped id as each event's ``project_id`` field
+    (the server treats this as ``run.id``). The server resolves the real project and
+    returns its ``project_id`` on the first successful flush; we capture it as
+    :attr:`server_project_id` for the command poller.
     """
 
     def __init__(
         self,
         settings: Settings,
-        project_id: str,
+        run_id: str,
         project_meta: dict[str, Any],
         http: httpx.Client | None = None,
     ) -> None:
         self.settings = settings
-        self.project_id = project_id
+        self.run_id = run_id
+        # `project_id` is the per-event run-scoped id the server treats as run.id.
+        self.project_id = run_id
         self.project_meta = dict(project_meta or {})
+        self.server_project_id: str | None = None
+        self.server_run_id: str | None = None
         self._owns_http = http is None
         self._http = http or httpx.Client(
             base_url=settings.api_url,
@@ -59,7 +70,6 @@ class EventReporter:
         message: str,
         *,
         incident_id: str | None = None,
-        agent_id: str | None = None,
         level: str = "info",
         data: dict[str, Any] | None = None,
         include_project: bool = False,
@@ -76,15 +86,13 @@ class EventReporter:
             }
             if incident_id is not None:
                 event["incident_id"] = incident_id
-            if agent_id is not None:
-                event["agent_id"] = agent_id
             if include_project:
                 event["project"] = dict(self.project_meta)
             self._queue.put_nowait(event)
         except Exception:  # pragma: no cover - put_nowait on an unbounded queue won't raise
             pass
 
-    def heartbeat(self, step: int, loss: float | None) -> None:
+    def heartbeat(self, step: int, loss: float | None, metrics: dict[str, float] | None = None) -> None:
         try:
             now = time.monotonic()
             if now - self._last_heartbeat < _HEARTBEAT_INTERVAL_S:
@@ -93,6 +101,7 @@ class EventReporter:
             data: dict[str, Any] = {"step": step}
             if loss is not None:
                 data["loss"] = loss
+            data["metrics"] = dict(metrics) if metrics else {}
             self.emit("run.heartbeat", f"step {step}", data=data)
         except Exception:
             pass
@@ -148,16 +157,35 @@ class EventReporter:
 
     def _post(self, events: list[dict[str, Any]]) -> None:
         try:
-            resp = self._http.post("/v1/events", json={"events": events})
+            resp = self._http.post(_EVENTS_PATH, json={"events": events})
             resp.raise_for_status()
+            self._capture_ids(resp)
         except Exception as exc:  # pragma: no cover - network failures are swallowed
             _log.debug("keepalive: event flush failed: %r", exc)
 
+    def _capture_ids(self, resp: httpx.Response) -> None:
+        if self.server_project_id is not None:
+            return
+        try:
+            body = resp.json()
+        except Exception:
+            return
+        if not isinstance(body, dict):
+            return
+        pid = body.get("project_id")
+        if isinstance(pid, str) and pid:
+            self.server_project_id = pid
+        rid = body.get("run_id")
+        if isinstance(rid, str) and rid:
+            self.server_run_id = rid
+
 
 class NullReporter:
-    """No-op reporter used when the relay isn't configured."""
+    """No-op reporter used when the server isn't configured."""
 
     project_id = ""
+    server_project_id: str | None = None
+    server_run_id: str | None = None
 
     def emit(self, *args: Any, **kwargs: Any) -> None:
         return None
@@ -173,61 +201,20 @@ def _iso_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def _git_remote() -> str:
-    try:
-        import subprocess
-
-        out = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        url = out.stdout.strip()
-    except Exception:
-        return ""
-    if url.startswith("git@"):
-        host, _, path = url.partition(":")
-        host = host.removeprefix("git@")
-        return f"https://{host}/{path.removesuffix('.git')}"
-    return url.removesuffix(".git")
-
-
 def build_reporter(
     settings: Settings,
     run: Any,
-    commit_sha: str,
+    project_meta: dict[str, Any],
     *,
-    demo_mode: bool = False,
     http: httpx.Client | None = None,
 ) -> EventReporter | NullReporter:
-    """Build a reporter, deriving project identity from the wandb run + git."""
+    """Build a reporter. ``project_meta`` is the full `project` block for run.started."""
     if not settings.api_key or not settings.api_url:
         return NullReporter()
 
     run_id = ""
     if run is not None:
         run_id = str(getattr(run, "id", "") or "")
-    project_id = run_id or f"local-{uuid.uuid4().hex[:8]}"
+    run_id = run_id or f"local-{uuid.uuid4().hex[:8]}"
 
-    name = ""
-    wandb_url = ""
-    if run is not None:
-        name = str(getattr(run, "name", "") or getattr(run, "project", "") or "")
-        wandb_url = str(getattr(run, "url", "") or "")
-
-    repo = ""
-    for candidate in (getattr(settings, "repo_url", ""), _git_remote()):
-        if candidate:
-            repo = candidate
-            break
-
-    project_meta = {
-        "name": name,
-        "repo": repo,
-        "wandb_run_id": run_id or None,
-        "wandb_url": wandb_url or None,
-        "commit_sha": commit_sha or None,
-        "demo_mode": demo_mode,
-    }
-    return EventReporter(settings, project_id, project_meta, http=http)
+    return EventReporter(settings, run_id, dict(project_meta or {}), http=http)

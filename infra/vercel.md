@@ -23,6 +23,8 @@ plugin + drizzle + Neon Postgres + shadcn/ui. pnpm.
 | `DATABASE_URL` | Neon pooled connection string |
 | `BETTER_AUTH_SECRET` | random 32+ byte secret (`openssl rand -base64 32`) |
 | `BETTER_AUTH_URL` | the dashboard's public URL, e.g. `https://keepalive.club` |
+| `GITHUB_CLIENT_ID` | GitHub OAuth App client id (see §7) |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth App client secret (see §7) |
 
 ## 4. Push the schema BEFORE first use
 
@@ -53,3 +55,31 @@ instructs. Set `BETTER_AUTH_URL=https://keepalive.club`.
 2. Issue a key → confirm it shows once and is prefixed `ka_live_`.
 3. Confirm a row landed in the Neon `apikey` table (sha256 hash stored, never the raw key).
 4. Use that key against the relay's `/v1/notify` (see `railway.md`).
+
+## 7. GitHub OAuth app setup
+
+Sign-in is **Continue with GitHub** (Better Auth social provider, `scope: ["repo"]`
+so we can read repos, create push webhooks, push branches, and open PRs on the repos
+the user admins). Set this up before first sign-in.
+
+1. GitHub → your account/org → **Settings → Developer settings → OAuth Apps → New
+   OAuth App**.
+2. Fields:
+   - **Application name:** `keepalive` (or `keepalive (dev)` for the localhost app).
+   - **Homepage URL:** `https://keepalive.club` (or `http://localhost:3000`).
+   - **Authorization callback URL:** `{BETTER_AUTH_URL}/api/auth/callback/github`,
+     i.e. `https://keepalive.club/api/auth/callback/github`.
+3. A GitHub OAuth App allows **one callback URL** only, so create a **second OAuth
+   App** for local dev with callback
+   `http://localhost:3000/api/auth/callback/github`.
+4. On each app: **Generate a new client secret**, then copy the **Client ID** and
+   **Client secret**.
+5. Set the env vars:
+   - Production (Vercel project env): `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` from
+     the production OAuth App. Ensure `BETTER_AUTH_URL` matches the app's callback host.
+   - Local (`.env.local`): the dev OAuth App's id/secret, plus
+     `BETTER_AUTH_URL=http://localhost:3000`.
+
+The GitHub access token is stored by Better Auth in the `account` table
+(`provider_id = 'github'`); server code reads it via `getOctokit(userId)` in
+`src/lib/github.ts`. OAuth-App tokens don't expire, so there's no refresh flow.

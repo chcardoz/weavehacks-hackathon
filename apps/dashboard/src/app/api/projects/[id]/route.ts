@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { and, asc, desc, eq, gt } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { agent, event, incident, project } from "@/db/schema"
+import { agent, event, incident, project, run } from "@/db/schema"
 import {
   type AgentRow,
   type AgentState,
@@ -15,6 +15,8 @@ import {
   parseLossHistory,
   type Project,
   type ProjectStatus,
+  type Run,
+  type RunStatus,
 } from "@/lib/observability-types"
 
 export const dynamic = "force-dynamic"
@@ -48,9 +50,16 @@ export async function GET(
     .where(eq(project.id, id))
     .limit(1)
 
-  if (!projectRow) {
+  if (!projectRow || projectRow.userId !== session.user.id) {
     return NextResponse.json({ error: "not_found" }, { status: 404 })
   }
+
+  const [latestRunRow] = await db
+    .select()
+    .from(run)
+    .where(eq(run.projectId, id))
+    .orderBy(desc(run.createdAt))
+    .limit(1)
 
   const incidentRows = await db
     .select()
@@ -92,28 +101,55 @@ export async function GET(
 
   const projectOut: Project = {
     id: projectRow.id,
+    userId: projectRow.userId,
     name: projectRow.name,
-    repo: projectRow.repo,
-    wandbRunId: projectRow.wandbRunId,
-    wandbUrl: projectRow.wandbUrl,
-    commitSha: projectRow.commitSha,
+    repoOwner: projectRow.repoOwner,
+    repoName: projectRow.repoName,
+    defaultBranch: projectRow.defaultBranch,
+    webhookId: projectRow.webhookId,
+    trainCommand: projectRow.trainCommand,
+    monitoringPrompt: projectRow.monitoringPrompt,
+    fixingPrompt: projectRow.fixingPrompt,
+    confidenceThreshold: projectRow.confidenceThreshold,
+    maxAgents: projectRow.maxAgents,
+    monitorModel: projectRow.monitorModel,
     status: projectRow.status as ProjectStatus,
-    currentStep: projectRow.currentStep,
-    latestLoss: projectRow.latestLoss,
-    lossHistory: parseLossHistory(projectRow.lossHistory),
-    demoMode: projectRow.demoMode ?? false,
-    lastEventAt: isoOrNull(projectRow.lastEventAt),
+    createdAt: isoOrNull(projectRow.createdAt),
+    updatedAt: isoOrNull(projectRow.updatedAt),
   }
+
+  const latestRun: Run | null = latestRunRow
+    ? {
+        id: latestRunRow.id,
+        projectId: latestRunRow.projectId,
+        wandbRunId: latestRunRow.wandbRunId,
+        wandbUrl: latestRunRow.wandbUrl,
+        commitSha: latestRunRow.commitSha,
+        branch: latestRunRow.branch,
+        source: latestRunRow.source as Run["source"] ?? "local",
+        sandboxId: latestRunRow.sandboxId,
+        status: latestRunRow.status as RunStatus,
+        currentStep: latestRunRow.currentStep,
+        latestLoss: latestRunRow.latestLoss,
+        lossHistory: parseLossHistory(latestRunRow.lossHistory),
+        demoMode: latestRunRow.demoMode ?? false,
+        lastEventAt: isoOrNull(latestRunRow.lastEventAt),
+        lastScoredAt: isoOrNull(latestRunRow.lastScoredAt),
+        createdAt: isoOrNull(latestRunRow.createdAt),
+      }
+    : null
 
   const incidents: Incident[] = incidentRows.map((inc) => ({
     id: inc.id,
     projectId: inc.projectId,
+    runId: inc.runId,
     kind: inc.kind,
     step: inc.step,
     status: inc.status as IncidentStatus,
+    confidence: inc.confidence,
+    reasoning: inc.reasoning,
     diagnosis: inc.diagnosis,
-    humanReply: inc.humanReply,
-    deadlineAt: isoOrNull(inc.deadlineAt),
+    workflowRunId: inc.workflowRunId,
     weaveUrl: inc.weaveUrl,
     winnerAgentId: inc.winnerAgentId,
     resolvedAt: isoOrNull(inc.resolvedAt),
@@ -125,18 +161,19 @@ export async function GET(
     incidentId: a.incidentId,
     projectId: a.projectId,
     hypothesis: a.hypothesis,
-    cursorAgentId: a.cursorAgentId,
     branch: a.branch,
+    prUrl: a.prUrl,
+    prNumber: a.prNumber,
     state: a.state as AgentState,
-    wandbRunId: a.wandbRunId,
-    finalLoss: a.finalLoss,
-    lossHistory: parseLossHistory(a.lossHistory),
+    report: a.report,
+    sandboxId: a.sandboxId,
     error: a.error,
   }))
 
   const events: EventRow[] = eventRows.map((e) => ({
     id: e.id,
     projectId: e.projectId,
+    runId: e.runId,
     incidentId: e.incidentId,
     agentId: e.agentId,
     source: e.source as EventSource,
@@ -149,6 +186,7 @@ export async function GET(
 
   return NextResponse.json({
     project: projectOut,
+    latestRun,
     incidents,
     agents,
     events,

@@ -89,12 +89,12 @@ class FaultInjector:
 
 
 class CommandPoller:
-    """Daemon thread that pulls demo commands from the relay and arms the injector.
+    """Daemon thread that pulls demo commands from the server and arms the injector.
 
-    Only started when demo mode is armed. Every ``_POLL_INTERVAL_S`` seconds it GETs
-    ``/v1/projects/{project_id}/commands`` (the relay marks them consumed atomically),
-    arms each command on the injector, and logs it via the reporter. All exceptions
-    are swallowed.
+    Only started when demo mode is armed and the server project id is known. Every
+    ``_POLL_INTERVAL_S`` seconds it GETs ``/api/v1/projects/{project_id}/commands``
+    (the server marks them consumed atomically), arms each command on the injector,
+    and logs it via the reporter. All exceptions are swallowed.
     """
 
     def __init__(
@@ -128,7 +128,7 @@ class CommandPoller:
     def poll_once(self) -> int:
         """Fetch pending commands, arm them, log them. Returns how many were handled."""
         try:
-            resp = self._http.get(f"/v1/projects/{self.project_id}/commands")
+            resp = self._http.get(f"/api/v1/projects/{self.project_id}/commands")
             resp.raise_for_status()
             payload = resp.json()
         except Exception as exc:

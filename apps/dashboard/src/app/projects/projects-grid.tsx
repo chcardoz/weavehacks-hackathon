@@ -4,16 +4,10 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ExternalLink, FolderGit2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Sparkline } from "@/components/sparkline"
 import {
-  formatCountdown,
   formatRelative,
   type ProjectListItem,
   projectActivityKind,
@@ -21,27 +15,23 @@ import {
 } from "@/lib/observability-types"
 import { useNow } from "./use-now"
 
-function ActivityLine({
-  item,
-  now,
-}: {
-  item: ProjectListItem
-  now: number
-}) {
+function ActivityLine({ item }: { item: ProjectListItem }) {
   const kind = projectActivityKind(item)
+  const run = item.latestRun
   switch (item.status) {
+    case "idle":
+      return <span className="text-muted-foreground">idle</span>
     case "training": {
-      const step = item.currentStep ?? 0
-      const loss =
-        item.latestLoss !== null ? item.latestLoss.toFixed(4) : "—"
+      const step = run?.currentStep ?? 0
+      const loss = run?.latestLoss != null ? run.latestLoss.toFixed(4) : "—"
       return (
         <div className="flex items-center gap-2">
           <span className="text-emerald-400">
             training · step {step} · loss {loss}
           </span>
-          {item.lossHistory.length > 0 && (
+          {run && run.lossHistory.length > 0 && (
             <Sparkline
-              points={item.lossHistory}
+              points={run.lossHistory}
               width={80}
               height={20}
               className="text-emerald-400"
@@ -52,26 +42,15 @@ function ActivityLine({
     }
     case "incident":
       return <span className="text-red-400">{kind} detected</span>
-    case "awaiting_human": {
-      const countdown = formatCountdown(
-        item.activeIncident?.deadlineAt ?? null,
-        now,
-      )
-      return (
-        <span className="text-amber-400">
-          {kind} · waiting on human · {countdown}
-        </span>
-      )
-    }
-    case "racing":
+    case "fixing":
       return (
         <span className="text-primary">
-          {item.racingAgentCount} agent
-          {item.racingAgentCount === 1 ? "" : "s"} racing
+          {item.fixingAgentCount} agent
+          {item.fixingAgentCount === 1 ? "" : "s"} fixing
         </span>
       )
     case "recovered":
-      return <span className="text-sky-400">recovered via probe</span>
+      return <span className="text-sky-400">recovered via fix</span>
     case "stopped":
       return <span className="text-muted-foreground">stopped</span>
     default:
@@ -81,6 +60,8 @@ function ActivityLine({
 
 function ProjectCard({ item, now }: { item: ProjectListItem; now: number }) {
   const tone = projectStatusTone(item.status)
+  const run = item.latestRun
+  const repo = `${item.repoOwner}/${item.repoName}`
   return (
     <Link href={`/projects/${item.id}`} className="block">
       <Card className="h-full transition-colors hover:border-primary/40">
@@ -93,16 +74,18 @@ function ProjectCard({ item, now }: { item: ProjectListItem; now: number }) {
             <span className="truncate font-medium">{item.name}</span>
           </div>
           <div className="truncate font-mono text-xs text-muted-foreground">
-            {item.repo ?? "no repo"}
-            {item.wandbRunId ? ` · ${item.wandbRunId}` : ""}
+            {repo}
+            {run?.wandbRunId ? ` · ${run.wandbRunId}` : ""}
           </div>
         </CardHeader>
         <CardContent className="pb-3 text-sm">
-          <ActivityLine item={item} now={now} />
+          <ActivityLine item={item} />
         </CardContent>
         <CardFooter className="justify-between text-xs text-muted-foreground">
-          <span>last event {formatRelative(item.lastEventAt, now)}</span>
-          {item.wandbUrl && (
+          <span>
+            last event {formatRelative(run?.lastEventAt ?? null, now)}
+          </span>
+          {run?.wandbUrl && (
             <Button
               asChild
               variant="ghost"
@@ -111,7 +94,7 @@ function ProjectCard({ item, now }: { item: ProjectListItem; now: number }) {
               onClick={(e) => e.stopPropagation()}
             >
               <a
-                href={item.wandbUrl}
+                href={run.wandbUrl}
                 target="_blank"
                 rel="noreferrer"
                 onClick={(e) => e.stopPropagation()}
@@ -143,8 +126,8 @@ function EmptyState() {
           <pre className="overflow-x-auto rounded-lg border border-border bg-muted/40 p-4 text-xs">
             <code className="font-mono text-foreground">{`import keepalive
 
-with keepalive.watchdog(run, escalate=["telegram"],
-                        timeout=120, checkpoint_dir="ckpt"):
+with keepalive.watchdog(run, prompt="Flag if val/loss diverges",
+                        threshold=0.6, max_agents=3):
     train(model)`}</code>
           </pre>
         </CardContent>

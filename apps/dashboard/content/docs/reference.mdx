@@ -1,0 +1,78 @@
+---
+title: Reference
+description: watchdog params, env vars, the CLI, event types, and project settings.
+---
+
+import { Callout } from "fumadocs-ui/components/callout"
+
+## `keepalive.watchdog(...)`
+
+Context manager that wraps your training loop.
+
+```python
+with keepalive.watchdog(run, prompt="...", threshold=0.6, max_agents=3):
+    train()
+```
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| `run` | `wandb.Run` | — | The active W&B run. The watchdog hooks its `log()` to capture metrics. |
+| `prompt` | `str` | `None` | Plain-English description of healthy training. Used as the monitoring agent's criteria. If null, the project's dashboard value (or a default) is used. |
+| `threshold` | `float` | `0.6` | Open an incident when monitor confidence drops below this. |
+| `max_agents` | `int` | `3` | Max coding agents fanned out per incident. |
+| `checkpoint_dir` | `str` | `None` | Where you checkpoint. Informational — surfaced to the fixing pipeline. |
+| `demo_mode` | `bool` | `False` | Enables fault-injection command polling for demos. |
+
+<Callout>
+Dashboard project settings win over library arguments. `prompt`, `threshold`, and
+`max_agents` from the library apply only when the matching project column is unset.
+</Callout>
+
+## Environment variables
+
+| Var | Required | Description |
+| --- | --- | --- |
+| `KEEPALIVE_API_KEY` | yes | Your `ka_live_…` key. Set it or run `keepalive login`. |
+| `KEEPALIVE_API_URL` | no | API base URL. Defaults to `https://keepalive.club`. |
+| `WANDB_API_KEY` | yes | Standard W&B key; training reports to Weights & Biases. |
+
+`keepalive login` writes the key to `~/.config/keepalive/config.json`, so you don't have to
+export `KEEPALIVE_API_KEY` in every shell.
+
+## CLI
+
+| Command | What it does |
+| --- | --- |
+| `keepalive login` | Prompt for your `ka_live_` key and store it in the config file. |
+| `keepalive run -- python train.py ...` | Subprocess supervisor. Runs your command, tails stderr for OOM / exceptions, and emits events. Survives hard crashes that would kill an in-process hook. |
+
+Use the `watchdog` context manager for soft failures and zero-lag metric hooks; use
+`keepalive run` when you need to survive process-killing crashes (CUDA OOM, segfault).
+
+## Events the library emits
+
+The library posts batched events to `POST /api/v1/events` (Bearer `ka_live_`):
+
+| Type | Payload | Meaning |
+| --- | --- | --- |
+| `run.started` | repo owner/name, branch, commit SHA, wandb run id + url | A run began; carries the git context. |
+| `run.heartbeat` | `{ step, loss?, metrics: {…} }` | Periodic metrics window (≤ every ~5s). Feeds the monitoring agent. |
+| `run.stopped` | — | The run ended normally. |
+| `incident.detected` | `{ kind, step, message?, metrics_tail? }` | A hard client-side failure (`nan_loss`, `oom`, `stall`, `exception`). |
+| `log` | free-form | A log line surfaced in the event feed. |
+
+Everything else in the feed — `monitor.scored`, hypothesis output, coding-agent
+transitions, PR links — is emitted server-side by the workflows.
+
+## Project settings (dashboard)
+
+Editable per project under **Agents** and **Settings**:
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| Monitoring prompt | library value / default | Plain-English watch criteria for the monitoring agent. |
+| Fixing prompt | — | Override for the hypothesis agent's prompt. |
+| Confidence threshold | `0.6` | Incident trips below this. |
+| Max agents | `3` | Coding agents per incident. |
+| Monitor model | `wandb/microsoft/Phi-4-mini-instruct` | `wandb/<id>` → W&B Inference; anything else → AI Gateway. |
+| Train command | `python train.py` | The command run inside the sandbox on merge. |

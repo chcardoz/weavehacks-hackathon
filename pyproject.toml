@@ -18,9 +18,10 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-mock>=3.14",
     "respx>=0.21",
-    "fakeredis>=2.26",
     "ruff>=0.8",
     "pyright>=1.1.390",
+    "wandb>=0.19",
+    "weave>=0.51",
 ]
 
 [tool.pytest.ini_options]

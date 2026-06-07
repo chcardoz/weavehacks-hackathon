@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import dataclasses
+import json
+import os
 import queue
 import subprocess
 import sys
@@ -9,17 +10,34 @@ from typing import Any
 
 import typer
 
-from .config import Settings
-from .types import (
-    FailureEvent,
-    FailureKind,
-    KeepaliveHandedOff,
-    KeepaliveRollback,
-    KeepaliveStop,
-)
+from .config import CONFIG_PATH, Settings
+from .types import FailureEvent, FailureKind
 from .watchdog import Watchdog
 
 app = typer.Typer(add_completion=False, help="keepalive — a watchdog for GPU training runs.")
+
+
+@app.command()
+def login(
+    api_key: str | None = typer.Option(None, "--api-key", help="ka_live_ API key (prompted if omitted)"),
+    api_url: str | None = typer.Option(None, "--api-url", help="override the API base URL"),
+) -> None:
+    """Store the keepalive API key in ~/.config/keepalive/config.json (chmod 600)."""
+    raw_key = api_key if api_key is not None else typer.prompt("keepalive API key", hide_input=True)
+    key = str(raw_key).strip()
+
+    if not key.startswith("ka_live_"):
+        typer.echo("error: API key must start with 'ka_live_'", err=True)
+        raise typer.Exit(code=1)
+
+    config: dict[str, str] = {"api_key": key}
+    if api_url:
+        config["api_url"] = api_url.strip()
+
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(config, indent=2) + "\n")
+    os.chmod(CONFIG_PATH, 0o600)
+    typer.echo(f"saved credentials to {CONFIG_PATH}")
 
 
 def _tail_stderr(stream: Any, events: queue.Queue[FailureEvent], suite: Any) -> None:
@@ -34,58 +52,32 @@ def _tail_stderr(stream: Any, events: queue.Queue[FailureEvent], suite: Any) -> 
             events.put(event)
 
 
-def _dispatch(wd: Watchdog, event: FailureEvent) -> int:
-    try:
-        wd.handle_failure(event)
-    except KeepaliveHandedOff as handed:
-        print(f"keepalive: training handed off to probe {handed.winner.spec.id} ({handed.winner.spec.branch})")
-        return 0
-    except KeepaliveRollback as rb:
-        print(f"keepalive: rolled back to {rb.checkpoint}")
-        return 0
-    except KeepaliveStop:
-        print("keepalive: run stopped.")
-        return 1
-    return 0
-
-
 @app.command(
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def run(
     ctx: typer.Context,
-    run_path: str | None = typer.Option(None, "--run-path", help="entity/project/run_id for history polling"),
-    timeout: float | None = typer.Option(None, "--timeout", help="escalation timeout in seconds"),
-    checkpoint_dir: str = typer.Option("checkpoints", "--checkpoint-dir"),
+    checkpoint_dir: str | None = typer.Option(None, "--checkpoint-dir"),
     loss_key: str | None = typer.Option(None, "--loss-key"),
+    demo: bool = typer.Option(False, "--demo", help="arm demo fault injection"),
 ) -> None:
+    """Supervise an unmodified training script: tail stderr, report failures."""
     cmd = list(ctx.args)
     if not cmd:
         typer.echo("usage: keepalive run -- python train.py ...", err=True)
         raise typer.Exit(code=2)
 
-    settings = Settings.from_env()
-    if timeout is not None:
-        settings = dataclasses.replace(settings, escalation_timeout_s=timeout)
+    settings = Settings.resolve()
 
     wd = Watchdog(
         run=None,
         settings=settings,
         entrypoint=cmd,
         checkpoint_dir=checkpoint_dir,
-        timeout=timeout,
         loss_key=loss_key,
+        demo_mode=demo or None,
     )
     wd.start()
-
-    poller = None
-    if run_path:
-        try:
-            from .detect.monitor import HistoryPoller
-
-            poller = HistoryPoller(run_path, loss_key=loss_key or settings.loss_key)
-        except Exception:
-            poller = None
 
     events: queue.Queue[FailureEvent] = queue.Queue()
     child = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True, bufsize=1)
@@ -94,48 +86,26 @@ def run(
 
     exit_code = 0
     try:
-        while child.poll() is None:
-            if poller is not None:
-                try:
-                    for snap in poller.poll():
-                        ev = wd.suite.observe(snap)
-                        if ev is not None:
-                            events.put(ev)
-                except Exception:
-                    pass
-            idle = None
-            try:
-                idle = wd.suite.idle_check()
-            except Exception:
-                idle = None
-            if idle is not None:
-                events.put(idle)
-
-            try:
-                event = events.get(timeout=1.0)
-            except queue.Empty:
-                continue
-
-            child.terminate()
-            exit_code = _dispatch(wd, event)
-            break
-        else:
-            code = child.returncode if child.returncode is not None else 0
-            try:
-                event = events.get_nowait()
-            except queue.Empty:
-                event = None
-            if event is not None:
-                exit_code = _dispatch(wd, event)
-            elif code != 0:
-                synthetic = FailureEvent(
+        return_code = child.wait()
+        # drain any failure scanned from stderr
+        try:
+            event = events.get_nowait()
+        except queue.Empty:
+            event = None
+        if event is not None:
+            wd.handle_failure(event)
+            exit_code = return_code or 1
+        elif return_code != 0:
+            wd.handle_failure(
+                FailureEvent(
                     kind=FailureKind.EXCEPTION,
                     step=-1,
-                    message=f"process exited {code}",
+                    message=f"process exited {return_code}",
                 )
-                exit_code = _dispatch(wd, synthetic)
-            else:
-                exit_code = 0
+            )
+            exit_code = return_code
+        else:
+            exit_code = 0
     finally:
         wd.stop()
         if child.poll() is None:

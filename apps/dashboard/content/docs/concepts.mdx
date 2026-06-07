@@ -1,0 +1,83 @@
+---
+title: Concepts
+description: How the monitoring agent, fixing pipeline, training launch, and tracing fit together.
+---
+
+import { Callout } from "fumadocs-ui/components/callout"
+
+keepalive is four moving parts: a thin client library on your machine, a server-side
+monitoring agent, a fixing pipeline, and an automatic training launcher. All of it is
+traced in Weave.
+
+## The monitoring agent
+
+Your library reports `run.heartbeat` events carrying the full metrics dict (`loss`,
+`val/loss`, `grad_norm`, `lr`, `gpu_util`, …) sampled at most every few seconds. The
+server keeps a rolling window of recent steps per run.
+
+Every ~20 seconds while a run is training, the monitoring agent scores that window against
+your project's **monitoring prompt** using a cheap model (default
+`wandb/microsoft/Phi-4-mini-instruct` on W&B Inference). It returns structured output:
+
+```json
+{ "confidence": 0.0-1.0, "reasoning": "one line", "signals": ["..."] }
+```
+
+`confidence` is how confident the agent is that training is *healthy*. When
+`confidence < threshold` (default `0.6`), keepalive opens an incident
+(`kind = monitor_flag`). Hard client-side failures — NaN loss, OOM, a stall, an
+uncaught exception — open an incident immediately without waiting for the agent.
+
+<Callout>
+The monitoring prompt is plain English and editable per project. "val/loss should track
+train/loss within ~0.3; flag divergence or grad_norm spikes" is a perfectly good prompt.
+</Callout>
+
+## The fixing pipeline
+
+An incident kicks off the fixing pipeline (a durable Workflow):
+
+1. **Load context** — the project, run, incident, recent events, and the last N rows of
+   incident memory.
+2. **Hypothesis agent** — a strong model with no code tools. Its only tool is
+   `searchIncidentMemory`, so it recalls past failures ("I've seen this NaN pattern
+   before") before proposing up to `max_agents` *distinct* fix hypotheses plus a diagnosis
+   summary.
+3. **Coding agents** — one per hypothesis, fanned out in parallel. Each runs in its own
+   Vercel Sandbox: it clones the repo at the incident run's commit, checks out a fresh
+   `keepalive/fix-…` branch, edits code with read/write/grep/bash tools, commits, pushes,
+   and opens a **pull request whose body is a full markdown report** of what it changed and
+   why.
+4. **Finalize** — write an incident-memory row (what happened + the winning fix), mark the
+   incident resolved or failed, update status, and optionally email a recap.
+
+You review the PRs. Branch pushes never trigger training, so the fix branches sit safely
+until you merge one.
+
+## Incident memory
+
+Every resolved incident writes a memory row scoped to the project: the failure kind, a
+summary, and the resolution. The hypothesis agent searches this memory on the next
+incident — so the system gets better at your specific model over time, and stops
+re-proposing fixes that already failed.
+
+## Training launches
+
+Training is **merge-driven**. The push webhook fires only for your project's default
+branch. On a qualifying push, the training-launch workflow creates a sandbox, installs
+`wandb[sandbox]`, clones the repo at the merged commit, runs your train command, and
+launches the run inside a **W&B Sandbox**. Metrics flow back through the normal library
+reporter from inside the sandbox, so the dashboard lights up exactly as it would for a
+local run.
+
+<Callout title="Branches don't train">
+Only the default branch launches training. Fix branches from the coding agents are inert
+until you merge them — review first.
+</Callout>
+
+## Weave tracing
+
+Every server-side AI call — the monitoring agent, the hypothesis agent, each coding
+agent — is exported to Weave via OpenTelemetry, keyed by incident and project. The result
+is one trace tree per incident: detect → diagnose → fan-out → PRs, all in one link you can
+open from the incident detail page.

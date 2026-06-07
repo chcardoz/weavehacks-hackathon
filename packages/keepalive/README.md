@@ -1,22 +1,52 @@
 # keepalive
 
-Watchdog for GPU training runs. Detects failures (NaN loss, divergence, stalls, OOM),
-diagnoses them with an LLM, escalates to you over a Telegram message + AI voice note, and — if you don't
-respond in time — spawns parallel Cursor cloud agents that write competing fixes, races
-them as checkpoint-resumed runs on W&B Sandboxes, and promotes the winner. Fully traced
-in W&B Weave.
+A thin client watchdog for GPU training runs. It detects hard failures (NaN loss,
+divergence, stalls, OOM), reports your metrics and events to
+[keepalive.club](https://keepalive.club), and gets out of the way. The server scores
+your run against a plain-English monitoring prompt, and when something goes wrong it
+diagnoses the failure and opens fix PRs on your repo — fully traced in W&B Weave.
+
+## Quickstart
+
+```bash
+pip install keepalive
+keepalive login            # prompts for your ka_live_ key, stores ~/.config/keepalive/config.json
+```
+
+Wrap your training loop:
 
 ```python
 import keepalive
 
-with keepalive.watchdog(run, escalate=["telegram"], timeout=120, checkpoint_dir="ckpts/"):
+with keepalive.watchdog(
+    run,                                   # your wandb run
+    prompt="Flag if val/loss diverges from train/loss or grad_norm spikes.",
+    threshold=0.6,
+    max_agents=3,
+    checkpoint_dir="ckpts/",               # informational
+    demo_mode=False,
+):
     train()
 ```
 
+The watchdog hooks `run.log()`, batches metrics/events to
+`POST {api_url}/api/v1/events`, and emits `incident.detected` on a hard failure —
+then keeps going. The server handles diagnosis, fixing, and PRs.
+
 Or supervise an unmodified script (survives hard crashes like CUDA OOM):
 
-```
+```bash
 keepalive run -- python train.py --batch-size 64
 ```
+
+## Configuration
+
+| Setting | Env var | Default |
+| ------- | ------- | ------- |
+| API key | `KEEPALIVE_API_KEY` | — (or `keepalive login`) |
+| API URL | `KEEPALIVE_API_URL` | `https://keepalive.club` |
+| Demo mode | `KEEPALIVE_DEMO` | off |
+
+Precedence is explicit kwargs > environment variables > `~/.config/keepalive/config.json`.
 
 Docs: https://docs.keepalive.club

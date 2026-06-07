@@ -1,0 +1,73 @@
+---
+title: Agent Blurb
+description: A copy-paste prompt that tells your coding agent how to wire keepalive in.
+---
+
+import { Callout } from "fumadocs-ui/components/callout"
+
+Don't integrate keepalive by hand. Open your training repo in Claude Code or Cursor and
+paste the block below verbatim. It tells your coding agent exactly how to wire keepalive
+and Weights & Biases into the training script so the platform can monitor and fix runs.
+
+<Callout title="Edit one line">
+Replace the placeholder in the `prompt=` argument with a sentence describing what healthy
+training looks like for *your* model. That sentence is what the monitoring agent reads.
+</Callout>
+
+````text
+You are wiring the `keepalive` training watchdog into this repository. keepalive watches
+W&B metrics during training and, on failure or drift, opens PRs with fixes. Make these
+changes:
+
+1. Dependencies. Add `keepalive` and `wandb` to requirements.txt (or pyproject
+   dependencies). Do not pin to old versions.
+
+2. Initialize W&B. Near the top of the training entrypoint, create a run:
+       import wandb
+       run = wandb.init(project="<this repo's model name>", config={...hyperparams...})
+   Read WANDB_API_KEY from the environment (wandb does this automatically). NEVER hardcode
+   any API key in the code.
+
+3. Log rich metrics every training step. After computing the loss, log a dict to the same
+   `run` on every step:
+       run.log({
+           "loss": loss.item(),
+           "grad_norm": <total grad norm, e.g. torch.nn.utils.clip_grad_norm_ return value>,
+           "lr": optimizer.param_groups[0]["lr"],
+       }, step=global_step)
+   When you run evaluation, also log "val/loss" (and "val/acc" if you have it) on that
+   same step. If a GPU utilization number is cheaply available (e.g. via pynvml or
+   torch.cuda), log it as "gpu_util". More signal = a smarter monitoring agent.
+
+4. Wrap the loop with the watchdog. Import keepalive and wrap the entire training loop in
+   its context manager. The `prompt` is plain English describing healthy training for THIS
+   model — be specific about which curves matter and what failure looks like:
+       import keepalive
+       with keepalive.watchdog(
+           run,
+           prompt="<one or two sentences: what healthy training looks like for this model "
+                  "and what should trip an alert — e.g. 'val/loss should track train/loss "
+                  "within ~0.3; flag divergence, NaN loss, or grad_norm spikes above 50'>",
+           threshold=0.6,
+           max_agents=3,
+           checkpoint_dir="checkpoints/",
+       ):
+           train()   # the existing training loop
+
+5. Env, not constants. KEEPALIVE_API_KEY and WANDB_API_KEY must come from the environment.
+   Do not write any key into source, config files, or notebooks.
+
+6. Keep checkpointing. Save a checkpoint every N steps to checkpoint_dir (keep or add this
+   if missing). Resume-from-checkpoint is required for the platform to relaunch runs.
+
+7. Entrypoint. Make `python train.py` (or the repo's documented entrypoint) run end to end
+   with NO required CLI arguments — every argparse option must have a sensible default. The
+   keepalive platform runs this exact command inside a sandbox on every merge to the
+   default branch, so it cannot supply interactive flags.
+
+After editing, show me a diff of train.py / the entrypoint and the updated requirements.
+Do not run training locally.
+````
+
+Once your agent has made these changes, merge to your default branch and watch the
+[Quickstart](/docs/quickstart) flow take over.
