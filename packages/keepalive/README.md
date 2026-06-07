@@ -2,7 +2,7 @@
 
 A thin client watchdog for GPU training runs. It detects hard failures (NaN loss,
 divergence, stalls, OOM), reports your metrics and events to
-[keepalive.club](https://keepalive.club), and gets out of the way. The server scores
+[the keepalive dashboard](https://weavehacks-hackathon-dashboard.vercel.app), and gets out of the way. The server scores
 your run against a plain-English monitoring prompt, and when something goes wrong it
 diagnoses the failure and opens fix PRs on your repo — fully traced in W&B Weave.
 
@@ -44,9 +44,9 @@ keepalive run -- python train.py --batch-size 64
 | Setting | Env var | Default |
 | ------- | ------- | ------- |
 | API key | `KEEPALIVE_API_KEY` | — (or `keepalive login`) |
-| API URL | `KEEPALIVE_API_URL` | `https://keepalive.club` |
+| API URL | `KEEPALIVE_API_URL` | `https://weavehacks-hackathon-dashboard.vercel.app` |
 | Demo mode | `KEEPALIVE_DEMO` | off |
 
 Precedence is explicit kwargs > environment variables > `~/.config/keepalive/config.json`.
 
-Docs: https://docs.keepalive.club
+Docs: https://weavehacks-hackathon-dashboard.vercel.app/docs

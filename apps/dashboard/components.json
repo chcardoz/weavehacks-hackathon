@@ -19,5 +19,7 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
-  "registries": {}
+  "registries": {
+    "@slide-cn": "https://slide-cn.com/r/{name}.json"
+  }
 }

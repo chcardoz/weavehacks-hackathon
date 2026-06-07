@@ -1,7 +1,7 @@
 [project]
 name = "keepalive-club"
-version = "0.2.0"
-description = "Thin client watchdog for GPU training runs: detects failures and reports metrics/events to keepalive.club, which diagnoses and opens fix PRs."
+version = "0.2.1"
+description = "Thin client watchdog for GPU training runs: detects failures and reports metrics/events to the keepalive dashboard, which diagnoses and opens fix PRs."
 readme = "README.md"
 license = "MIT"
 authors = [{ name = "keepalive", email = "support@keepalive.club" }]
@@ -28,8 +28,8 @@ weave = ["weave>=0.51"]
 keepalive = "keepalive.cli:app"
 
 [project.urls]
-Homepage = "https://keepalive.club"
-Documentation = "https://docs.keepalive.club"
+Homepage = "https://weavehacks-hackathon-dashboard.vercel.app"
+Documentation = "https://weavehacks-hackathon-dashboard.vercel.app/docs"
 Source = "https://github.com/keepalive-club/keepalive"
 
 [build-system]

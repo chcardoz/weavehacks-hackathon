@@ -14,7 +14,7 @@ import {
 import { flushTraces } from "@/lib/ai"
 import { emitEvent } from "@/lib/server-events"
 import { getGithubToken, getOctokit } from "@/lib/github"
-import { sendIncidentReport } from "@/lib/email"
+import { dashboardBaseUrl, sendIncidentReport } from "@/lib/email"
 import {
   generateHypotheses,
   type Hypothesis,
@@ -633,5 +633,5 @@ ${agentSummary || "_(no agent summary)_"}
 Check out this branch and resume training from the last good checkpoint; confirm the failure (\`${ctx.incident.kind ?? "the incident"}\`) no longer reproduces.
 
 ---
-Opened automatically by [keepalive](https://keepalive.club/projects/${ctx.projectId}). One of several parallel fix hypotheses for this incident.`
+Opened automatically by [keepalive](${dashboardBaseUrl()}/projects/${ctx.projectId}). One of several parallel fix hypotheses for this incident.`
 }

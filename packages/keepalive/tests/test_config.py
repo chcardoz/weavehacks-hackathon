@@ -31,7 +31,7 @@ def _write_config(data: dict[str, str]) -> None:
 
 def test_default_api_url() -> None:
     s = Settings.resolve()
-    assert s.api_url == "https://keepalive.club"
+    assert s.api_url == "https://weavehacks-hackathon-dashboard.vercel.app"
     assert s.api_key == ""
 
 
@@ -69,4 +69,4 @@ def test_malformed_config_file_ignored() -> None:
     config.CONFIG_PATH.write_text("not json{")
     s = Settings.resolve()
     assert s.api_key == ""
-    assert s.api_url == "https://keepalive.club"
+    assert s.api_url == "https://weavehacks-hackathon-dashboard.vercel.app"

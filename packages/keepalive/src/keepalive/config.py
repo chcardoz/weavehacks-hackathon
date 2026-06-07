@@ -7,7 +7,7 @@ from pathlib import Path
 
 CONFIG_PATH = Path.home() / ".config" / "keepalive" / "config.json"
 
-_DEFAULT_API_URL = "https://keepalive.club"
+_DEFAULT_API_URL = "https://weavehacks-hackathon-dashboard.vercel.app"
 
 
 def _load_config_file() -> dict[str, str]:
