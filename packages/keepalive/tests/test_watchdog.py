@@ -145,6 +145,7 @@ def _build(
     escalation: FakeEscalation | None = None,
     memory: FakeMemory | None = None,
     run: Any = None,
+    reporter: Any = None,
 ) -> tuple[Watchdog, dict[str, Any]]:
     # one checkpoint file so last_checkpoint is set
     ckpt = tmp_path / "ckpt"
@@ -166,6 +167,9 @@ def _build(
     cur = cursor or FakeCursor()
     ex = executor or FakeExecutor()
 
+    from keepalive.reporter import NullReporter
+
+    rep = reporter or NullReporter()
     wd = Watchdog(
         run=run,
         settings=s,
@@ -180,8 +184,9 @@ def _build(
         suite=object(),  # never used in these tests
         checkpoint_dir=str(ckpt),
         entrypoint=["python", "train.py"],
+        reporter=rep,  # keep tests offline; emission paths covered in test_reporter
     )
-    return wd, {"engine": eng, "esc": esc, "dl": dl, "mem": mem, "cursor": cur, "ex": ex}
+    return wd, {"engine": eng, "esc": esc, "dl": dl, "mem": mem, "cursor": cur, "ex": ex, "reporter": rep}
 
 
 # ---------------------------------------------------------------------------
@@ -321,3 +326,72 @@ def test_agent_memory_requires_explicit_url() -> None:
     assert mem.available is False
     assert mem._client() is None
     assert mem.recall(_event()) == []
+
+
+# ---------------------------------------------------------------------------
+# Emission wiring
+# ---------------------------------------------------------------------------
+
+
+class RecordingReporter:
+    def __init__(self) -> None:
+        self.events: list[tuple[str, dict[str, Any]]] = []
+
+    def emit(self, type: str, message: str, **kwargs: Any) -> None:
+        self.events.append((type, kwargs))
+
+    def heartbeat(self, step: int, loss: float | None) -> None:  # pragma: no cover - unused here
+        pass
+
+    def close(self) -> None:
+        pass
+
+    def types(self) -> list[str]:
+        return [t for t, _ in self.events]
+
+
+def test_handoff_emits_full_lifecycle(tmp_path: Path) -> None:
+    rep = RecordingReporter()
+    wd, _deps = _build(tmp_path, reply=None, reporter=rep)
+    with pytest.raises(KeepaliveHandedOff):
+        wd.handle_failure(_event())
+
+    types = rep.types()
+    # core lifecycle order
+    assert "incident.detected" in types
+    assert "incident.diagnosed" in types
+    assert "incident.escalated" in types
+    assert "incident.deadline_expired" in types
+    assert types.count("agent.spawned") == 2
+    assert "agent.metrics" in types
+    assert "incident.promoted" in types
+
+    # incident.detected carries kind + step and the project object
+    detected = next(kw for t, kw in rep.events if t == "incident.detected")
+    assert detected["data"]["kind"] == "nan_loss"
+    assert detected["data"]["step"] == 400
+    assert detected["include_project"] is True
+
+    promoted = next(kw for t, kw in rep.events if t == "incident.promoted")
+    assert promoted["data"]["winner_agent_id"] == "probe_1"
+    assert promoted["data"]["final_loss"] == 0.1
+
+
+def test_stop_reply_emits_incident_stopped(tmp_path: Path) -> None:
+    rep = RecordingReporter()
+    wd, _ = _build(tmp_path, reply=HumanReply.STOP, reporter=rep)
+    with pytest.raises(KeepaliveStop):
+        wd.handle_failure(_event())
+    types = rep.types()
+    assert "incident.human_reply" in types
+    assert "incident.stopped" in types
+    reply_ev = next(kw for t, kw in rep.events if t == "incident.human_reply")
+    assert reply_ev["data"]["reply"] == "3"
+
+
+def test_all_probes_fail_emits_stopped(tmp_path: Path) -> None:
+    rep = RecordingReporter()
+    wd, _ = _build(tmp_path, reply=None, executor=FakeExecutor(all_fail=True), reporter=rep)
+    with pytest.raises(KeepaliveStop):
+        wd.handle_failure(_event())
+    assert "incident.stopped" in rep.types()
