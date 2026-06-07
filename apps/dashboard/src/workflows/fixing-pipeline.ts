@@ -11,7 +11,7 @@ import {
   run as runTable,
   user as userTable,
 } from "@/db/schema"
-import { flushTraces } from "@/lib/ai"
+import { flushTraces, initWeave } from "@/lib/ai"
 import { emitEvent } from "@/lib/server-events"
 import { getGithubToken, getOctokit } from "@/lib/github"
 import { dashboardBaseUrl, sendIncidentReport } from "@/lib/email"
@@ -208,6 +208,7 @@ async function generateHypothesesStep(
 ): Promise<PipelineContext> {
   "use step"
 
+  await initWeave()
   try {
     const { diagnosis, hypotheses } = await generateHypotheses({
       projectId: ctx.projectId,
@@ -252,6 +253,7 @@ async function runCodingAgent(
 ): Promise<AgentRunResult> {
   "use step"
 
+  await initWeave()
   const agentId = crypto.randomUUID()
   const branch = `keepalive/fix-${ctx.incidentId.slice(0, 8)}-${index + 1}`
 

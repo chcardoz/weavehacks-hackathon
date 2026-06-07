@@ -1,5 +1,5 @@
-import { registerWeaveTelemetry } from "@/lib/ai/telemetry";
+import { initWeave } from "@/lib/ai/telemetry";
 
-export function register() {
-  registerWeaveTelemetry();
+export async function register() {
+  await initWeave();
 }

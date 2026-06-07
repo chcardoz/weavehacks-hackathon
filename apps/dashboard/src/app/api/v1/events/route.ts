@@ -9,6 +9,7 @@ import { emitEvent } from "@/lib/server-events"
 import {
   DEFAULT_MONITORING_PROMPT,
   flushTraces,
+  initWeave,
   scoreMetrics,
   type MetricsWindowEntry,
 } from "@/lib/ai"
@@ -328,6 +329,11 @@ export async function POST(request: Request) {
   if (!identity) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
+
+  // Ensure the Weave client exists for this invocation (idempotent; the
+  // instrumentation hook normally covers cold starts, this is belt-and-braces
+  // for the demo-critical monitoring path).
+  await initWeave()
 
   let body: unknown
   try {
