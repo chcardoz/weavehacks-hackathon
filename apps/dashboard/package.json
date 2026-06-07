@@ -35,6 +35,7 @@
     "fumadocs-mdx": "^11.10.1",
     "fumadocs-ui": "^15.8.5",
     "lucide-react": "^0.468.0",
+    "motion": "^12.40.0",
     "next": "^15.1.0",
     "octokit": "^5.0.5",
     "radix-ui": "^1.5.0",

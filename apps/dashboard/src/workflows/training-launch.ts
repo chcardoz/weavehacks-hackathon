@@ -90,7 +90,9 @@ async function loadLaunchContext(
     githubToken: githubToken ?? undefined,
     wandbApiKey: owner?.wandbApiKey ?? undefined,
     trainingApiKey: proj.trainingApiKey ?? undefined,
-    keepaliveUrl: process.env.BETTER_AUTH_URL ?? "https://keepalive.club",
+    keepaliveUrl:
+      process.env.BETTER_AUTH_URL ??
+      "https://weavehacks-hackathon-dashboard.vercel.app",
   }
 }
 
@@ -153,7 +155,8 @@ async function launchSandboxTraining(
         LAUNCH_GITHUB_TOKEN: ctx.githubToken ?? "",
         LAUNCH_WANDB_KEY: ctx.wandbApiKey ?? "",
         LAUNCH_KEEPALIVE_KEY: ctx.trainingApiKey ?? "",
-        LAUNCH_KEEPALIVE_URL: ctx.keepaliveUrl ?? "https://keepalive.club",
+        LAUNCH_KEEPALIVE_URL:
+          ctx.keepaliveUrl ?? "https://weavehacks-hackathon-dashboard.vercel.app",
         WANDB_API_KEY: ctx.wandbApiKey ?? "",
       },
     })

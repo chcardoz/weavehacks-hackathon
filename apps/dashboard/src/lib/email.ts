@@ -5,6 +5,14 @@ import { Resend } from "resend"
 
 const FROM = "keepalive <reports@keepalive.club>"
 
+/** Public dashboard base URL for links in outbound emails/PRs. */
+export function dashboardBaseUrl(): string {
+  return (
+    process.env.BETTER_AUTH_URL ??
+    "https://weavehacks-hackathon-dashboard.vercel.app"
+  )
+}
+
 export interface IncidentEmailResult {
   agentId: string
   state: string
@@ -57,7 +65,7 @@ export async function sendIncidentReport(
   <p><strong>Diagnosis:</strong> ${escapeHtml(incident.diagnosis ?? "(none)")}</p>
   ${opened.length ? `<p><strong>Fix PRs opened:</strong></p><ul>${prList}</ul>` : "<p>No fix PRs were opened.</p>"}
   ${failed.length ? `<p><strong>Agents that failed:</strong></p><ul>${failedList}</ul>` : ""}
-  <p style="color:#666;font-size:13px">View the full incident in your <a href="https://keepalive.club/projects/${project.id}">keepalive dashboard</a>.</p>
+  <p style="color:#666;font-size:13px">View the full incident in your <a href="${dashboardBaseUrl()}/projects/${project.id}">keepalive dashboard</a>.</p>
 </div>`
 
   try {
