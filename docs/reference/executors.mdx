@@ -1,0 +1,120 @@
+---
+title: Executors
+description: The ProbeExecutor protocol and how to write your own.
+---
+
+Probe execution is pluggable. keepalive races fix branches through a `ProbeExecutor`, so
+you can swap where probes run — sandboxes, your own box, or a custom backend — without
+touching the race logic.
+
+## The `ProbeExecutor` protocol
+
+```python
+from typing import Protocol, runtime_checkable
+from keepalive import ProbeSpec, ProbeResult, RunContext
+
+
+@runtime_checkable
+class ProbeExecutor(Protocol):
+    def execute(self, spec: ProbeSpec, ctx: RunContext, *, steps: int) -> ProbeResult: ...
+
+    def kill(self, spec: ProbeSpec) -> None: ...
+```
+
+- **`execute`** runs one probe: check out `spec.branch`, resume from
+  `ctx.checkpoint_dir` / `ctx.last_checkpoint`, train `steps` steps as a **separate**
+  W&B run (`group="watchdog-{ctx.run_id}"`, `job_type="probe"`, name `spec.id`), and return
+  a `ProbeResult` with the run's history and `final_loss`.
+- **`kill`** stops a probe early (losers are killed once a winner is picked).
+
+## Built-in executors
+
+### `SandboxExecutor` (default)
+
+```python
+from keepalive.probes.sandbox import SandboxExecutor
+
+executor = SandboxExecutor(settings)               # uses Settings
+executor = SandboxExecutor(settings, session_factory=my_factory)  # inject for tests
+```
+
+Runs each probe on **W&B Sandboxes** (`wandb.sandbox.Sandbox`) — Kata microVMs, CPU-only
+serverless, authed with your W&B API key. Public preview; this is the demo path. Inject
+`session_factory` to stub the sandbox in tests.
+
+### `LocalExecutor` (fallback / real-GPU)
+
+```python
+from keepalive.probes.local import LocalExecutor
+
+executor = LocalExecutor(settings)                 # repo root inferred
+executor = LocalExecutor(settings, repo_root="/path/to/repo")
+```
+
+Runs each probe in a **git worktree + subprocess** on your own box. The fallback when
+sandboxes misbehave, and the path for real-GPU probes.
+
+## Racing probes
+
+```python
+from keepalive.probes.executor import race
+from keepalive.probes import judge
+
+winner, all_results = race(specs, executor, ctx, steps=300, on_update=print)
+# winner = judge.pick_winner(all_results)  -> argmin finite final_loss among FINISHED
+```
+
+`race` runs probes concurrently (`ThreadPoolExecutor`), judges the winner via
+`judge.pick_winner` (argmin of finite `final_loss`), and kills the losers.
+
+## Writing a custom executor
+
+Anything implementing the two methods works (it's a runtime-checkable Protocol). Pass it
+to the watchdog via `executor=`.
+
+```python
+from keepalive import (
+    watchdog,
+    ProbeSpec,
+    ProbeResult,
+    ProbeState,
+    RunContext,
+    MetricSnapshot,
+)
+
+
+class ModalExecutor:
+    def __init__(self, settings):
+        self.settings = settings
+        self._handles: dict[str, object] = {}
+
+    def execute(self, spec: ProbeSpec, ctx: RunContext, *, steps: int) -> ProbeResult:
+        # 1. spin up a Modal function for spec.branch
+        # 2. resume from ctx.last_checkpoint and train `steps` steps
+        # 3. log to a separate W&B run grouped under f"watchdog-{ctx.run_id}"
+        history: list[MetricSnapshot] = run_probe(spec, ctx, steps)
+        final = history[-1].metrics.get(ctx.loss_key) if history else None
+        return ProbeResult(
+            spec=spec,
+            wandb_run_id=spec.id,
+            history=history,
+            final_loss=final,
+            state=ProbeState.FINISHED,
+        )
+
+    def kill(self, spec: ProbeSpec) -> None:
+        handle = self._handles.pop(spec.id, None)
+        if handle is not None:
+            handle.terminate()
+
+
+with watchdog(run, executor=ModalExecutor(settings), checkpoint_dir="ckpts/"):
+    train()
+```
+
+<Note>
+Each probe child process must call `weave.init()` itself — Weave does not propagate across
+process boundaries, and traces from a child that never initialized are silently dropped.
+Probe W&B runs must always be **separate** and grouped; never co-write `_step` to the
+parent run.
+</Note>

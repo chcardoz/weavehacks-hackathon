@@ -1,0 +1,84 @@
+---
+title: Self-hosting
+description: Run your own relay and dashboard.
+---
+
+The keepalive library runs on your GPU box and needs almost nothing hosted. The two
+hosted pieces are the **relay** (`apps/api`) and the **dashboard** (`apps/dashboard`).
+You can use the managed ones at `api.keepalive.club` / `keepalive.club`, or run your own.
+
+## The relay (`apps/api`)
+
+A small FastAPI backend that does only what can't be local — and now also manages the
+OpenAI bits (diagnosis LLM + TTS) on behalf of end users so they don't bring their own key:
+
+- Issue / verify `ka_live_` API keys (sha256 hash lookup).
+- Send Telegram messages via the bot — `sendMessage` (with inline buttons) and `sendVoice`
+  (`POST /v1/notify`, with a `chat_id` and an optional `voice_script` string).
+- Synthesize the voice note server-side: when `/v1/notify` carries a `voice_script`, the
+  relay renders the `gpt-4o-mini-tts` mp3 with **its own** `OPENAI_API_KEY`, hosts it, and
+  attaches it to the `sendVoice` call. Best-effort — TTS failure never blocks the text.
+- Proxy the diagnosis LLM (`POST /v1/llm/chat/completions`) — an OpenAI-compatible
+  chat-completions endpoint. Bearer auth with the `ka_live_` key; model allow-list
+  `KEEPALIVE_LLM_MODELS`; per-key rate limit `KEEPALIVE_LLM_RATE_LIMIT_PER_MIN` (429 when
+  exceeded); no streaming; 2 MB body cap; `503` if the relay has no `OPENAI_API_KEY`.
+- Receive inbound updates — button taps and typed replies (`POST /telegram`, validates the
+  `X-Telegram-Bot-Api-Secret-Token` header against `TELEGRAM_WEBHOOK_SECRET`).
+- Host the voice-note audio (`GET /a/{id}`, `GET /a/{id}.mp3`).
+
+It never touches GPUs or code. Deploy it to Railway (FastAPI + Postgres + Redis one-click).
+Start command:
+
+```bash
+uvicorn keepalive_api.main:app --host 0.0.0.0 --port $PORT
+```
+
+Point your library at it with `KEEPALIVE_API_URL=https://your-relay.example.com`.
+
+The relay holds the Telegram bot credentials: one `TELEGRAM_BOT_TOKEN` (from
+[@BotFather](https://t.me/BotFather)) and an optional `TELEGRAM_WEBHOOK_SECRET` used to
+validate inbound updates. Register the webhook to point at your relay's `POST /telegram`.
+
+### Relay environment variables
+
+| Env var | Default | Purpose |
+| ------- | ------- | ------- |
+| `OPENAI_API_KEY` | — | The relay's own OpenAI key — powers the diagnosis proxy and TTS. |
+| `KEEPALIVE_LLM_MODELS` | `gpt-5.4,gpt-5.4-mini` | Allow-list for the `/v1/llm/chat/completions` proxy. |
+| `KEEPALIVE_LLM_RATE_LIMIT_PER_MIN` | `30` | Per-key request cap on the LLM proxy (429 over). |
+| `KEEPALIVE_TTS_MODEL` | `gpt-4o-mini-tts` | TTS model used to synthesize the voice note. |
+| `KEEPALIVE_TTS_VOICE` | `alloy` | TTS voice. |
+| `TELEGRAM_BOT_TOKEN` | — | The bot token from @BotFather. |
+| `TELEGRAM_WEBHOOK_SECRET` | — | Optional shared secret validating inbound `/telegram` updates. |
+
+Full steps: `infra/railway.md`.
+
+## The dashboard (`apps/dashboard`)
+
+A Next.js App Router app for signing in and issuing / revoking API keys, built on Better
+Auth's `api-key` plugin (prefix `ka_live_`), drizzle + Neon Postgres, and shadcn/ui.
+Deploy to Vercel with root directory `apps/dashboard`.
+
+<Warning>
+Run `pnpm db:generate && pnpm db:migrate` against your Neon database **before first use**,
+or the `apikey` table won't exist and key issuance will fail.
+</Warning>
+
+Full steps: `infra/vercel.md`.
+
+## Infra runbooks
+
+All concrete deployment commands live in the repo's `infra/` directory:
+
+| Runbook | What it covers |
+| ------- | -------------- |
+| `infra/README.md` | Index + env var master table. |
+| `infra/railway.md` | Deploy the relay (FastAPI + Postgres + Redis). |
+| `infra/vercel.md` | Deploy the dashboard (Neon + Better Auth). |
+| `infra/mintlify.md` | Deploy these docs. |
+| `infra/telegram.md` | Create the bot, set the webhook + secret, test the inbound path. |
+| `infra/cursor-onboarding.md` | The Cursor user setup chain. |
+| `infra/redis.md` | Redis 8 + Agent Memory Server on Railway. |
+| `infra/cloud-testing.md` | End-to-end cloud test plan across all providers. |
+| `infra/wandb-sandboxes.md` | Sandbox setup + hour-one smoke test. |
+| `infra/pypi.md` | Trusted publishing for the library. |

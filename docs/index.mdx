@@ -1,0 +1,61 @@
+---
+title: keepalive
+description: Agents that hold you accountable — and stop waiting when you don't show up.
+---
+
+**keepalive** is a pip-installable watchdog for GPU training runs. It watches your
+W&B metrics, catches failures (NaN loss, divergence, stalls, OOM, crashes), explains
+what went wrong in plain English, messages you on Telegram, and — if you don't answer in time — takes
+over: it spawns parallel coding agents that each write a different fix, races those
+fixes as short checkpoint-resumed training runs, and promotes the one with the lowest
+loss. Every decision is traced in [W&B Weave](https://wandb.ai/site/weave).
+
+> Agents that hold you accountable — and stop waiting when you don't show up.
+
+## The escalation ladder
+
+keepalive escalates along three rungs. Each rung is a different relationship between
+you and the system.
+
+<CardGroup cols={3}>
+  <Card title="Awareness" icon="eye">
+    Detection + diagnosis. The watchdog notices the failure the instant it happens
+    and turns it into a plain-English explanation — no more staring at loss curves.
+  </Card>
+  <Card title="Agency" icon="bell">
+    Escalation. You get a Telegram message with inline buttons plus an AI voice note.
+    Tap **⏪ Roll back**, **🔧 Apply fix**, or **🛑 Stop** (or type 1/2/3). You stay in control.
+  </Card>
+  <Card title="Assurance" icon="shield">
+    Autonomy. If you don't reply before the deadline, authority transfers. Coding
+    agents write fixes, keepalive races them, and the winner becomes your training.
+  </Card>
+</CardGroup>
+
+## The 30-second pitch
+
+Training runs fail at 3am. By the time you wake up you've burned eight hours of GPU
+time on a diverged run. keepalive sits inside your training loop, catches the failure
+in-process (zero lag), diagnoses it with GPT, and messages you on Telegram. If you're asleep, it
+doesn't just sit there — it branches your repo at the exact failing commit, hands the
+problem to parallel Cursor cloud agents that each propose a fix, runs each fix as a
+short probe from your last good checkpoint on W&B Sandboxes, and keeps the one that
+actually drives loss down. You wake up to a recovered run and a shareable Weave trace
+of every decision.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install keepalive and wrap your training loop in five minutes.
+  </Card>
+  <Card title="How it works" icon="diagram-project" href="/how-it-works">
+    The full incident flow and the two-machine architecture.
+  </Card>
+  <Card title="Watchdog reference" icon="code" href="/reference/watchdog">
+    The public API: `watchdog()`, `Watchdog`, control exceptions.
+  </Card>
+  <Card title="Demo runbook" icon="play" href="/demo">
+    Run the 3-minute on-stage demo with the fault injector.
+  </Card>
+</CardGroup>
