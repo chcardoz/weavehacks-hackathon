@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from .config import Settings
+from .demo import CommandPoller, FaultInjector
+from .reporter import EventReporter, NullReporter, build_reporter
 from .types import (
     Diagnosis,
     FailureEvent,
@@ -25,9 +27,12 @@ from .watchdog import Watchdog, watchdog
 __version__ = "0.1.0"
 
 __all__ = [
+    "CommandPoller",
     "Diagnosis",
+    "EventReporter",
     "FailureEvent",
     "FailureKind",
+    "FaultInjector",
     "FixHypothesis",
     "HumanReply",
     "Incident",
@@ -37,6 +42,7 @@ __all__ = [
     "KeepaliveRollback",
     "KeepaliveStop",
     "MetricSnapshot",
+    "NullReporter",
     "ProbeExecutor",
     "ProbeResult",
     "ProbeSpec",
@@ -45,5 +51,6 @@ __all__ = [
     "Settings",
     "Watchdog",
     "__version__",
+    "build_reporter",
     "watchdog",
 ]

@@ -33,6 +33,7 @@ environment with `Settings.from_env()`. The table below mirrors the defaults exa
 | `KEEPALIVE_METRICS_POLL_TIMEOUT` | `metrics_poll_timeout_s` | `120.0` | Max wait for a probe's run + loss to appear in W&B. |
 | `KEEPALIVE_WEAVE_PROJECT` | `weave_project` | `keepalive` | Weave project name for tracing. |
 | `KEEPALIVE_LOSS_KEY` | `loss_key` | `loss` | Metric key treated as loss. |
+| `KEEPALIVE_DEMO` | `demo_mode` | `false` | **Demo only.** Arms the dashboard's fault-inject buttons: the watchdog polls the relay for inject commands (NaN / divergence / stall / OOM) and applies them at the next step boundary. Never enable on a real run. |
 
 ## Diagnosis LLM provider ladder
 

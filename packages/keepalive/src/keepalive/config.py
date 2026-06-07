@@ -48,6 +48,7 @@ class Settings:
     metrics_poll_timeout_s: float = 120.0
     weave_project: str = "keepalive"
     loss_key: str = "loss"
+    demo_mode: bool = False
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -75,4 +76,5 @@ class Settings:
             metrics_poll_timeout_s=_env_float("KEEPALIVE_METRICS_POLL_TIMEOUT", cls.metrics_poll_timeout_s),
             weave_project=_env("KEEPALIVE_WEAVE_PROJECT", cls.weave_project),
             loss_key=_env("KEEPALIVE_LOSS_KEY", cls.loss_key),
+            demo_mode=_env_bool("KEEPALIVE_DEMO"),
         )

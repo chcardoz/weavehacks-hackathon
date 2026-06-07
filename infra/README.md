@@ -5,8 +5,9 @@ standing up.
 
 | Runbook | Service |
 | ------- | ------- |
-| [railway.md](./railway.md) | Relay (`apps/api`): FastAPI + Postgres + Redis |
+| [railway.md](./railway.md) | Relay (`apps/api`): FastAPI + Redis (Postgres = shared Neon) |
 | [vercel.md](./vercel.md) | Dashboard (`apps/dashboard`): Next.js + Neon |
+| [observability.md](./observability.md) | Dashboard `/projects` data contract: tables, event types, commands |
 | [mintlify.md](./mintlify.md) | Docs site (`docs/`) |
 | [telegram.md](./telegram.md) | Escalation messages + inline-button replies |
 | [cursor-onboarding.md](./cursor-onboarding.md) | Cursor cloud agents (probe code) |
@@ -22,7 +23,8 @@ standing up.
   them (diagnosis proxy + TTS), and Redis is opt-in.
 - **The relay** (`apps/api`, Railway) does Telegram, key verification, the `/v1/llm`
   diagnosis proxy, voice-note TTS + hosting.
-- **The dashboard** (`apps/dashboard`, Vercel) issues keys.
+- **The dashboard** (`apps/dashboard`, Vercel) issues keys and shows live `/projects`
+  observability (incidents, probe agents, logs, demo fault injection).
 - **Cursor cloud agents** only write code; they run on Cursor's VMs.
 
 ## Env var master table — which service needs which secret
@@ -43,7 +45,8 @@ standing up.
 | `KEEPALIVE_LLM_MODELS` / `KEEPALIVE_LLM_RATE_LIMIT_PER_MIN` | — | optional (proxy guardrails) | — | — |
 | `KEEPALIVE_TTS_MODEL` / `KEEPALIVE_TTS_VOICE` | — | optional | — | — |
 | `KEEPALIVE_DEV_KEYS` (fallback) | — | ✅ (optional) | — | — |
-| `DATABASE_URL` (Neon) | — | ✅ (key lookup) | ✅ | — |
+| `KEEPALIVE_DEMO` | optional (arms dashboard fault-inject buttons) | — | — | — |
+| `DATABASE_URL` (Neon) | — | ✅ (key lookup + observability tables) | ✅ | — |
 | `BETTER_AUTH_SECRET` | — | — | ✅ | — |
 | `BETTER_AUTH_URL` | — | — | ✅ | — |
 

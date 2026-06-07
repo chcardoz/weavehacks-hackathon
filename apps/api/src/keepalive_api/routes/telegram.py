@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 
-from keepalive_api.deps import get_redis, get_settings, get_telegram
+from keepalive_api.deps import get_pg_pool, get_redis, get_settings, get_telegram
+from keepalive_api.events_log import log_event
+
+if TYPE_CHECKING:
+    import asyncpg
 
 logger = logging.getLogger("keepalive_api.telegram")
 
@@ -17,6 +21,7 @@ _ACTION_REPLIES = {
     "2": "applying the fix.",
     "3": "stopping the run.",
 }
+_ACTION_LABELS = {"1": "roll back", "2": "apply fix", "3": "stop"}
 _HELP_TEXT = "Tap a button on the incident message, or reply 1 to roll back, 2 to apply the fix, or 3 to stop the run."
 
 
@@ -38,17 +43,55 @@ async def _answer_callback(telegram: httpx.AsyncClient | None, callback_id: str,
         logger.warning("answerCallbackQuery failed (%s): %s", resp.status_code, resp.text)
 
 
-async def _handle_callback(callback: dict[str, Any], redis: Any, telegram: httpx.AsyncClient | None) -> None:
+async def _on_reply(pool: asyncpg.Pool | None, incident_id: str, choice: str) -> None:
+    """The relay sees the reply first: resolve project_id, self-log, and apply the
+    human_reply state effect. Best-effort — never raises into the webhook handler.
+    """
+    if pool is None:
+        return
+    try:
+        row = await pool.fetchrow("SELECT project_id FROM incident WHERE id = $1", incident_id)
+    except Exception:
+        return
+    if row is None:
+        return
+    try:
+        await pool.execute("UPDATE incident SET human_reply = $2 WHERE id = $1", incident_id, choice)
+    except Exception:
+        logger.warning("human_reply update failed for incident %s", incident_id, exc_info=True)
+    await log_event(
+        pool,
+        project_id=str(row["project_id"]),
+        incident_id=incident_id,
+        source="relay",
+        type="incident.human_reply",
+        message=f"human replied: {_ACTION_LABELS.get(choice, choice)}",
+        data={"reply": choice},
+    )
+
+
+async def _handle_callback(
+    callback: dict[str, Any],
+    redis: Any,
+    telegram: httpx.AsyncClient | None,
+    pool: asyncpg.Pool | None,
+) -> None:
     # callback_data is "{incident_id}:{choice}" (set by /v1/notify's inline keyboard).
     incident_id, _, choice = str(callback.get("data", "")).rpartition(":")
     if incident_id and choice in _ACTION_REPLIES:
         await redis.set(f"reply:{incident_id}", choice, ex=86400)
+        await _on_reply(pool, incident_id, choice)
         await _answer_callback(telegram, callback["id"], f"Got it — {_ACTION_REPLIES[choice]}")
     else:
         await _answer_callback(telegram, callback["id"], _HELP_TEXT)
 
 
-async def _handle_message(message: dict[str, Any], redis: Any, telegram: httpx.AsyncClient | None) -> None:
+async def _handle_message(
+    message: dict[str, Any],
+    redis: Any,
+    telegram: httpx.AsyncClient | None,
+    pool: asyncpg.Pool | None,
+) -> None:
     chat_id = message["chat"]["id"]
     text = str(message.get("text", "")).strip()
 
@@ -67,6 +110,7 @@ async def _handle_message(message: dict[str, Any], redis: Any, telegram: httpx.A
             return
         incident_id = incident_id_raw.decode() if isinstance(incident_id_raw, bytes) else str(incident_id_raw)
         await redis.set(f"reply:{incident_id}", text, ex=86400)
+        await _on_reply(pool, incident_id, text)
         await _send_text(telegram, chat_id, f"Got it — {_ACTION_REPLIES[text]}")
         return
 
@@ -78,6 +122,7 @@ async def telegram_webhook(request: Request) -> dict[str, bool]:
     settings = get_settings(request)
     redis = get_redis(request)
     telegram = get_telegram(request)
+    pool = get_pg_pool(request)
 
     if settings.telegram_webhook_secret:
         secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
@@ -88,11 +133,11 @@ async def telegram_webhook(request: Request) -> dict[str, bool]:
 
     callback = update.get("callback_query")
     if callback is not None:
-        await _handle_callback(callback, redis, telegram)
+        await _handle_callback(callback, redis, telegram, pool)
         return {"ok": True}
 
     message = update.get("message")
     if message is not None and message.get("chat"):
-        await _handle_message(message, redis, telegram)
+        await _handle_message(message, redis, telegram, pool)
 
     return {"ok": True}

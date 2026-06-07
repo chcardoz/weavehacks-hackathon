@@ -1,8 +1,10 @@
 # keepalive dashboard
 
-Sign in, then issue / show-once / revoke `ka_live_` API keys. Next.js 15 (App
-Router) + Better Auth (api-key plugin) + drizzle-orm on Neon Postgres + Tailwind
-v4.
+Sign in, then issue / show-once / revoke `ka_live_` API keys, and watch your
+training runs live on `/projects` (incident lifecycle, probe agents, unified
+logs, demo fault injection — contract in `../../infra/observability.md`).
+Next.js 15 (App Router) + Better Auth (api-key plugin) + drizzle-orm on Neon
+Postgres + Tailwind v4.
 
 ## Setup
 
@@ -18,18 +20,22 @@ Required env vars (see `.env.example`):
 - `BETTER_AUTH_URL` — e.g. `http://localhost:3000`
 - `NEXT_PUBLIC_APP_URL` — e.g. `http://localhost:3000`
 
-## Database migration (REQUIRED)
+## Database schema push (REQUIRED)
 
-You MUST run the Better Auth migration before the app works. Without it the
-`apikey` table (and the core auth tables) will not exist and every request fails:
+You MUST push the schema before the app works. Without it the `apikey` table
+(and the core auth tables) will not exist and every request fails:
 
 ```bash
-pnpm db:generate   # @better-auth/cli generate — writes the schema
-pnpm db:migrate    # @better-auth/cli migrate — applies it to Neon
+DATABASE_URL="<neon connection string>" pnpm db:push   # drizzle-kit push
 ```
 
-The drizzle schema in `src/db/schema.ts` mirrors the Better Auth core tables plus
-the api-key plugin's `apikey` table; keep them in sync if you change plugins.
+Prefer Neon's **unpooled** connection string for DDL. Heads-up:
+`@better-auth/cli migrate` does NOT work here — it only supports the built-in
+Kysely adapter and this app uses the drizzle adapter; `db:push` is the working
+path. `pnpm db:generate` only regenerates the Better Auth portion of
+`src/db/schema.ts` after plugin changes. The schema also holds the
+observability tables (`project`/`incident`/`agent`/`event`/`command`) shared
+with the relay — contract in `../../infra/observability.md`.
 
 ## Develop
 

@@ -1,13 +1,17 @@
 # Railway — deploy the relay (`apps/api`)
 
-The relay is FastAPI. Railway gives us FastAPI + Postgres + Redis one-click. It does
+The relay is FastAPI. Railway gives us FastAPI + Redis one-click. It does
 Telegram send, inbound reply webhook, key verification, the `/v1/llm` diagnosis proxy
-(fronts OpenAI with our key), and voice-note TTS + hosting.
+(fronts OpenAI with our key), voice-note TTS + hosting, and the observability event
+ingest / command feed for the dashboard (`infra/observability.md`).
 
 ## 1. Create the project + services
 
 1. New Project → Deploy from GitHub repo → pick this repo.
-2. Add **Postgres** (New → Database → PostgreSQL). Railway sets `DATABASE_URL`.
+2. **Do NOT add Railway Postgres.** The relay must share the dashboard's **Neon**
+   database (same `apikey` table for key verification, same observability tables for
+   `/projects`). Set `DATABASE_URL` to the Neon connection string from `vercel.md` —
+   a Railway Postgres would be a second, empty database and key lookups would fail.
 3. Add **Redis** (New → Database → Redis). Railway sets a Redis URL — copy it into
    `REDIS_URL` on the API service.
 
@@ -28,7 +32,7 @@ Telegram send, inbound reply webhook, key verification, the `/v1/llm` diagnosis 
 
 | Var | Value |
 | --- | ----- |
-| `DATABASE_URL` | from Railway Postgres (auto) |
+| `DATABASE_URL` | the **Neon** connection string (same DB as the dashboard — NOT Railway Postgres) |
 | `REDIS_URL` | from Railway Redis |
 | `TELEGRAM_BOT_TOKEN` | from @BotFather (see `telegram.md`) |
 | `TELEGRAM_WEBHOOK_SECRET` | `openssl rand -hex 16`; same value passed to `setWebhook` |
@@ -69,4 +73,6 @@ confirm `GET /v1/incidents/inc_test/reply` returns it.
 - `POST /v1/llm/chat/completions` — OpenAI-compatible diagnosis proxy. Bearer = `ka_live_` key. Model allow-list, no streaming, 2MB cap, per-key rate limit (429), 503 if `OPENAI_API_KEY` unset.
 - `POST /telegram` — Telegram webhook (JSON update). Validates `X-Telegram-Bot-Api-Secret-Token`. Button tap (`{incident_id}:{choice}`) or typed `1`/`2`/`3` → Redis `reply:{incident_id}`.
 - `GET /v1/incidents/{id}/reply` → `{"reply": "1"|"2"|"3"|null}`.
+- `POST /v1/events` — observability ingest. Bearer = `ka_live_` key. Batch of ≤100 events (`{project: {...}, events: [...]}`); each event also applies its state effect to the `project`/`incident`/`agent` tables. Full contract: `infra/observability.md`.
+- `GET /v1/projects/{id}/commands` — Bearer = `ka_live_` key. Atomically consumes pending dashboard commands (fault injections) for that project → `{"commands": [...]}`.
 - `GET /a/{id}` — HTML audio page. `GET /a/{id}.mp3` — `Content-Type: audio/mpeg`.

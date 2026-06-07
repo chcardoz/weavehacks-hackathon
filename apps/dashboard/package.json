@@ -13,7 +13,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:generate": "npx @better-auth/cli generate",
-    "db:migrate": "npx @better-auth/cli migrate"
+    "db:push": "drizzle-kit push --dialect=postgresql --schema=./src/db/schema.ts --url=$DATABASE_URL"
   },
   "dependencies": {
     "@better-auth/api-key": "^1.6.14",

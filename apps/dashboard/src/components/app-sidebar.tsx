@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Activity, BookOpen, KeyRound } from "lucide-react"
+import { Activity, BookOpen, FolderGit2, KeyRound } from "lucide-react"
 import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
@@ -18,7 +18,10 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 
-const nav = [{ title: "API keys", href: "/keys", icon: KeyRound }]
+const nav = [
+  { title: "Projects", href: "/projects", icon: FolderGit2 },
+  { title: "API keys", href: "/keys", icon: KeyRound },
+]
 
 export function AppSidebar({
   userEmail,

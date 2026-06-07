@@ -60,8 +60,10 @@ Auth's `api-key` plugin (prefix `ka_live_`), drizzle + Neon Postgres, and shadcn
 Deploy to Vercel with root directory `apps/dashboard`.
 
 <Warning>
-Run `pnpm db:generate && pnpm db:migrate` against your Neon database **before first use**,
-or the `apikey` table won't exist and key issuance will fail.
+Run `DATABASE_URL="<neon connection string>" pnpm db:push` (from `apps/dashboard`) against
+your Neon database **before first use**, or the `apikey` table won't exist and key issuance
+will fail. (`@better-auth/cli migrate` does not work with this app's drizzle adapter —
+`db:push` is the working path.)
 </Warning>
 
 Full steps: `infra/vercel.md`.
@@ -73,8 +75,9 @@ All concrete deployment commands live in the repo's `infra/` directory:
 | Runbook | What it covers |
 | ------- | -------------- |
 | `infra/README.md` | Index + env var master table. |
-| `infra/railway.md` | Deploy the relay (FastAPI + Postgres + Redis). |
+| `infra/railway.md` | Deploy the relay (FastAPI + Redis; Postgres = shared Neon). |
 | `infra/vercel.md` | Deploy the dashboard (Neon + Better Auth). |
+| `infra/observability.md` | The `/projects` data contract (tables, event types, commands). |
 | `infra/mintlify.md` | Deploy these docs. |
 | `infra/telegram.md` | Create the bot, set the webhook + secret, test the inbound path. |
 | `infra/cursor-onboarding.md` | The Cursor user setup chain. |
